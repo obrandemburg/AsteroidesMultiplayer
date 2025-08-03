@@ -3,12 +3,15 @@ using Microsoft.Xna.Framework.Input;
 using Monogame.Processing;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Cliente.Servicos;
+
+namespace Asteroides.Cliente;
 
 public class JogoAsteroides : Processing
 {
-    /* --------------------- estado de jogo --------------------- */
-    // estado do jogo: nave, tiros, asteroides, pontuação
-    Nave nave;
+    private GerenciadorDeRede _gerenciadorDeRede;
+
+    readonly List<Nave> naves = new();
     readonly List<Tiro> tiros = new();
     readonly List<Asteroide> asteroides = new();
 
@@ -16,10 +19,13 @@ public class JogoAsteroides : Processing
 
     int pontuacao;
 
-    /* --------------------- teclado (flags) -------------------- */
     bool esquerda, direita, cima, baixo;
 
-    /* ===================== ciclo de vida ====================== */
+    public JogoAsteroides(GerenciadorDeRede gerenciadorDeRede)
+    {
+        this._gerenciadorDeRede = gerenciadorDeRede;
+    }
+
     public override void Setup()
     {
         size(1280, 720);
@@ -33,60 +39,7 @@ public class JogoAsteroides : Processing
 
     public override async void Draw()
     {
-        background(0);
 
-        /* ----- nave ----- */
-        Teclas();
-        await Program.gerenciador.EnviarMensagemAsync();
-        nave.Atualizar(esquerda, direita, cima, baixo, width, height);
-        nave.Desenhar(this);
-
-        /* ----- tiros ----- */
-        for (int i = tiros.Count - 1; i >= 0; i--)
-        {
-            var t = tiros[i];
-            t.Atualizar();
-            t.Desenhar(this);
-            if (t.ForaDaTela(height)) tiros.RemoveAt(i);
-        }
-
-        /* ----- asteroides ----- */
-        for (int i = asteroides.Count - 1; i >= 0; i--)
-        {
-            var a = asteroides[i];
-            a.Atualizar();
-            a.Desenhar(this);
-
-            /* colisão tiro × asteroide */
-            for (int j = tiros.Count - 1; j >= 0; j--)
-            {
-                if (!a.Colide(tiros[j])) continue;
-                pontuacao += 10;
-                tiros.RemoveAt(j);
-                asteroides.RemoveAt(i);
-                goto proximoAst;        // sai dos dois loops
-            }
-
-            /* colisão nave × asteroide */
-            if (a.Colide(nave))
-            {
-                fill(255, 0, 0);
-                textSize(48);
-                //textAlign(CENTER, CENTER);
-                text("GAME OVER", width / 2f + -4 * 48, height / 2f);
-                noLoop();
-            }
-
-        proximoAst:;
-        }
-
-        /* spawna novo asteroide a cada 40 quadros */
-        if (frameCount % 40 == 0) asteroides.Add(NovoAsteroide());
-
-        /* ----- placar ----- */
-        fill(255);
-        textSize(20);
-        text($"Pontuacao: {pontuacao}", 10, 10);
     }
 
     /* ====================== input ============================= */
