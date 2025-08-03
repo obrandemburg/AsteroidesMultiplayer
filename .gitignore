@@ -1,0 +1,80 @@
+# Arquivos e pastas gerados pelo Visual Studio e pelo sistema de compilação
+## As pastas de compilação podem ser ignoradas porque podem ser geradas a partir do código-fonte.
+## O conteúdo pode variar dependendo das configurações do projeto.
+**/[Bb]in/
+**/[Oo]bj/
+**/[Rr]elease/
+**/[Dd]ebug/
+**/[Aa]rtifacts/
+
+# Arquivos específicos do usuário do Visual Studio
+# Esses arquivos armazenam configurações de usuário e não devem ser compartilhados
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Arquivos do Visual Studio Code
+# Ignora a pasta de configurações do VS Code que pode conter configurações locais
+.vscode/
+# Pasta de cache e configurações do Visual Studio
+.vs/
+# Arquivos gerados por ferramentas e editores
+# ReSharper
+_ReSharper*/
+*.[Rr]esharper
+*.DotSettings.user
+
+# Testes
+*.ncrunch*
+*.[Tt]est[Rr]esult*
+*.coverage
+*.trx
+
+# Arquivos de log e cache
+*.log
+*.cache
+*.tmp
+
+# Pacotes NuGet
+# A pasta de pacotes deve ser ignorada por causa da Restauração de Pacotes do NuGet
+**/[Pp]ackages/
+# No entanto, a pasta 'build' dentro dos pacotes, que é usada como um destino do MSBuild, não deve ser ignorada.
+!**/[Pp]ackages/build/
+
+# Arquivos gerados pelo sistema operacional
+# Ignora arquivos de sistema comuns do Windows e macOS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Arquivos de backup e de conversão do Visual Studio
+# Arquivos de backup não são necessários, pois temos o Git ;-)
+_UpgradeReport_Files/
+Backup*/
+*.bak
+
+# Arquivos de publicação
+*.publish.xml
+*.pubxml
+*.pubxml.user
+
+# Arquivos específicos de alguns tipos de projeto
+# Projetos Web
+*.Compiled
+*.pdb.original
+
+# Projetos de Serviço de Aplicativo do Azure
+PublishProfiles/
+
+# Rider
+.idea/
+
+# Arquivos gerados pelo .NET Core
+project.lock.json
+project.fragment.lock.json
+
+# Se estiver usando Entity Framework Migrations, você pode querer descomentar a linha abaixo
+# !*Migration*.cs
