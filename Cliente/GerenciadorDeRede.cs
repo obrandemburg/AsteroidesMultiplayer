@@ -49,7 +49,7 @@ namespace Asteroides.Cliente
             }
         }
 
-        public async Task<string> LerMensagemAsync()
+        public async Task<string?> LerMensagemAsync()
         {
             if (leitor == null)
             {
