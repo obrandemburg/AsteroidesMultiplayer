@@ -30,4 +30,8 @@
     <PackageReference Include="Monogame.Processing" Version="0.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Asteroides.Compartilhado\Asteroides.Compartilhado.csproj" />
+  </ItemGroup>
+
 </Project>

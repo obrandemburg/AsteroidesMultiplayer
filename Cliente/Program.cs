@@ -1,13 +1,6 @@
-﻿using Asteroides;
-using Microsoft.Xna.Framework.Input;
-using Monogame.Processing;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using Cliente.Servicos;
-using System.Linq.Expressions;
+﻿using Cliente.Servicos;
 
-namespace Asteroides.Cliente;
+namespace Cliente;
 
 public static class Program
 {

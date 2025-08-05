@@ -1,34 +1,34 @@
+using Asteroides.Compartilhado.Estados;
+using Asteroides.Compartilhado.Interfaces;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;   // só para comparar com Keys.*
 using Monogame.Processing;
 
-namespace Asteroides;
+namespace Cliente.Entidades;
 
-class Asteroide
+class Asteroide : IEntidadeComEstado<AsteroideEstado>
 {
-    Vector2 pos, vel;
+
     PImage spriteAsteroide;
-    public float Raio { get; }
+    public AsteroideEstado Estado { get; set; }
 
-    public Asteroide(Vector2 p, Vector2 v, float r, PImage spriteAsteroide)
+    public Vector2 Posicao => new Vector2(Estado.PosicaoX, Estado.PosicaoY);
+    public Asteroide(AsteroideEstado estado, PImage SpriteAsteroide)
     {
-        pos = p; vel = v; Raio = r;
-        this.spriteAsteroide = spriteAsteroide;
+        this.Estado = estado;
+        this.spriteAsteroide = SpriteAsteroide;
     }
-
-    public void Atualizar() => pos += vel;
 
     public void Desenhar(Processing g)
     {
         float novaLargura = 80;
         float novaAltura = 60;
 
-        float topLeftX = pos.X - (novaLargura / 2f);
-        float topLeftY = pos.Y - (novaAltura / 2f);
+        float topLeftX = Posicao.X - (novaLargura / 2f);
+        float topLeftY = Posicao.Y - (novaAltura / 2f);
 
         g.image(spriteAsteroide, topLeftX, topLeftY, novaLargura, novaAltura);
     }
 
-    public bool Colide(Tiro t) => Vector2.Distance(t.Pos, pos) < Raio;
-    public bool Colide(Nave n) => Vector2.Distance(n.Posicao, pos) < Raio + 8;
+    //public bool Colide(TiroEstado t) => Vector2.Distance(t.Posicao, Posicao) < Estado.Raio;
+    //public bool Colide(NaveEstado n) => Vector2.Distance(n.Posicao, Posicao) < Estado.Raio + 8;
 }

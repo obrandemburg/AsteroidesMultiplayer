@@ -1,5 +1,7 @@
-﻿using System.Collections.Concurrent;
+﻿using Asteroides.Compartilhado.Contratos;
+using System.Collections.Concurrent;
 using System.Net.Sockets;
+using System.Text.Json;
 
 namespace Cliente.Servicos
 {
@@ -15,7 +17,8 @@ namespace Cliente.Servicos
 
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
-        private GerenciadorDeRede() {
+        private GerenciadorDeRede()
+        {
             _cliente = new TcpClient();
         }
 
@@ -55,11 +58,12 @@ namespace Cliente.Servicos
             Task.Run(() => LoopDeEnvioAsync(_cts.Token));
         }
 
-        public void EnviarMensagem(string mensagem)
+        public void EnviarMensagem(MensagemBase mensagem)
         {
-            if (!string.IsNullOrEmpty(mensagem))
+            if (mensagem != null)
             {
-                _filaDeEnvio.Enqueue(mensagem);
+                string jsonMensagem = JsonSerializer.Serialize(mensagem, mensagem.GetType());
+                _filaDeEnvio.Enqueue(jsonMensagem);
             }
         }
         private async Task LoopDeEnvioAsync(CancellationToken token)
@@ -94,7 +98,7 @@ namespace Cliente.Servicos
                 {
                     string? dadosRecebidos = await _leitor.ReadLineAsync();
 
-                    
+
                     if (dadosRecebidos == null)
                     {
                         Console.WriteLine("O servidor fechou a conexão.");

@@ -1,34 +1,34 @@
+using Asteroides.Compartilhado.Estados;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;   // só para comparar com Keys.*
 using Monogame.Processing;
+using Asteroides.Compartilhado.Interfaces; 
 
-namespace Asteroides;
+namespace Cliente.Entidades;
 
-class Tiro
+class Tiro : IEntidadeComEstado<TiroEstado>
 {
-    Vector2 pos, vel;
-    PImage spriteTiro;
-    public Tiro(Vector2 p, Vector2 v, PImage spriteTiro)
-    {
-        pos = p;
-        vel = v;
-        this.spriteTiro = spriteTiro;
-    }
+    public TiroEstado Estado { get; set; }
+    public Vector2 Posicao => new Vector2(Estado.PosicaoX, Estado.PosicaoY);
+    //public Vector2 Velocidade => new Vector2(Estado.Velocidade.X, Estado.Velocidade.Y);
 
-    public void Atualizar() => pos += vel;
+    PImage spriteTiro;
+    public Tiro(TiroEstado estado, PImage SpriteTiro)
+    {
+        this.spriteTiro = SpriteTiro;
+        this.Estado = estado;
+    }
 
     public void Desenhar(Processing g)
     {
         float novaLargura = 80;
         float novaAltura = 60;
 
-        float topLeftX = pos.X - (novaLargura / 2f);
-        float topLeftY = pos.Y - (novaAltura / 2f);
+        float topLeftX = Posicao.X - (novaLargura / 2f);
+        float topLeftY = Posicao.Y - (novaAltura / 2f);
 
         g.image(spriteTiro, topLeftX, topLeftY, novaLargura, novaAltura);
     }
 
-    public bool ForaDaTela(int h) => pos.Y < -5;
-    public Vector2 Pos => pos;
+    public bool ForaDaTela(int h) => Posicao.Y < -5;
 }
 
