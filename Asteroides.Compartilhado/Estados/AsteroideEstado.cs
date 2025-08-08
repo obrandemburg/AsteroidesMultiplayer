@@ -14,7 +14,7 @@ public class AsteroideEstado : MensagemBase, IEstadoComId
     public float VelocidadeY;
     public float Raio { get; }
 
-    AsteroideEstado()
+    public AsteroideEstado()
     {
         Tipo = "Asteroide_Estado";
     }

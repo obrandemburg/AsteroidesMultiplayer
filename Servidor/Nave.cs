@@ -1,8 +1,7 @@
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;   // só para comparar com Keys.*
+  // só para comparar com Keys.*
 using Monogame.Processing;
-using Microsoft.Xna.Framework.Graphics;
+
 
 namespace Asteroides;
 

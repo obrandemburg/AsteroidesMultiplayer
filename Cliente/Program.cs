@@ -15,7 +15,7 @@ public static class Program
         try
         {
             GerenciadorDeRede gerenciador = await GerenciadorDeRede.CriaEConecta(ipServidor, portaServidor);
-
+            Console.WriteLine("Entrando no jogo");
             using var jogo = new JogoAsteroides(gerenciador);
             jogo.Run();
         }

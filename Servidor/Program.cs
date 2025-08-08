@@ -1,7 +1,5 @@
 ﻿using Asteroides;
 using Servidor;
-using System.Net;
-using System.Net.Sockets;
 
 Console.Title = "SERVIDOR";
 Console.WriteLine("Iniciando servidor...");

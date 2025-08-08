@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -6,10 +7,9 @@ using System.Threading.Tasks;
 
 namespace Servidor
 {
-    // A classe agora implementa IDisposable para gerenciar os recursos
     internal class GerenciadorDeRede : IDisposable
     {
-        // Propriedades para acessar os leitores e escritores de fora da classe
+
         public StreamReader Reader1 { get; private set; }
         public StreamWriter Writer1 { get; private set; }
         public StreamReader Reader2 { get; private set; }
@@ -19,76 +19,107 @@ namespace Servidor
         private TcpClient _client1;
         private TcpClient _client2;
 
-        // O construtor agora é simples e apenas prepara o listener
+        private ConcurrentQueue<string> _mensagensRecebidas = new ConcurrentQueue<string>();
+        private BlockingCollection<string> _mensagensEnviadas = new BlockingCollection<string>();
+
+        CancellationTokenSource _cts = new CancellationTokenSource();
+
         public GerenciadorDeRede()
         {
             _listener = new TcpListener(IPAddress.Any, 12345);
         }
 
-        // Método async para iniciar o servidor e aceitar os clientes
         public async Task IniciarEConectarClientesAsync()
         {
             _listener.Start();
             Console.WriteLine("Servidor iniciado. Aguardando 2 clientes...");
 
-            // Aceita o primeiro cliente
             _client1 = await _listener.AcceptTcpClientAsync();
             var stream1 = _client1.GetStream();
             Reader1 = new StreamReader(stream1);
             Writer1 = new StreamWriter(stream1) { AutoFlush = true };
-            await Writer1.WriteLineAsync("1");
-            
+
             Console.WriteLine("Cliente 1 conectado!");
 
-            // Aceita o segundo cliente
             _client2 = await _listener.AcceptTcpClientAsync();
-            var stream2 = _client2.GetStream(); // Correção do erro de lógica
+            var stream2 = _client2.GetStream();
             Reader2 = new StreamReader(stream2);
             Writer2 = new StreamWriter(stream2) { AutoFlush = true };
-            await Writer2.WriteLineAsync("2");
 
             Console.WriteLine("Cliente 2 conectado!");
 
             Console.WriteLine("Ambos os clientes estão conectados e prontos para comunicação.");
+            Console.WriteLine("Iniciando Leitor e escritor em threads diferentes");
+            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, "Cliente 1"));
+            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, "Cliente 2"));
+            Task tarefa3 = Task.Run(() => EnviarMensagemAsync(_cts.Token));
         }
 
-        public async Task EnviarMensagemParaClienteAsync(int clienteId, string mensagem)
+        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, string cliente)
         {
-            if (clienteId == 1 && Writer1 != null)
+            Console.WriteLine($"Ouvindo {cliente}.");
+            try
             {
-                await Writer1.WriteLineAsync(mensagem);
+                string? json;
+                while ((json = await clienteReader.ReadLineAsync(token)) != null)
+                {
+                    _mensagensRecebidas.Enqueue(json);
+                    Console.WriteLine($"Mensagem recebida de {cliente}: {json}");
+                }
+
+                Console.WriteLine($"{cliente} desconectou de forma limpa.");
             }
-            else if (clienteId == 2 && Writer2 != null)
+            catch (OperationCanceledException)
             {
-                await Writer2.WriteLineAsync(mensagem);
+                Console.WriteLine($"A escuta de {cliente} foi cancelada.");
             }
-            else
+            catch (IOException ex)
             {
-                throw new ArgumentException("ID do cliente inválido.");
+                Console.WriteLine($"A conexão com {cliente} foi perdida: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro inesperado na escuta de {cliente}: {ex.Message}");
+            }
+            finally
+            {
+                Console.WriteLine($"Parando de ouvir {cliente}.");
             }
         }
 
-        public async Task<string> LerMensagemDoClienteAsync(int clienteId)
+        private async Task EnviarMensagemAsync(CancellationToken cts)
         {
-            if (clienteId == 1 && Reader1 != null)
+            try
             {
-                return await Reader1.ReadLineAsync();
+                foreach (var mensagem in _mensagensEnviadas.GetConsumingEnumerable(cts))
+                {
+
+                    Task tarefa1 = Writer1.WriteLineAsync(mensagem);
+                    Task tarefa2 = Writer2.WriteLineAsync(mensagem);
+                    await Task.WhenAll(tarefa1, tarefa2);
+                    Console.WriteLine($"Mensagem enviada: {mensagem}");
+                }
             }
-            else if (clienteId == 2 && Reader2 != null)
+            catch (OperationCanceledException)
             {
-                return await Reader2.ReadLineAsync();
-            }
-            else
-            {
-                throw new ArgumentException("ID do cliente inválido.");
+                Console.WriteLine("Tarefa de envio de mensagens cancelada.");
             }
         }
 
-        // Método para limpar todos os recursos quando o objeto for descartado
+        public void EnviarMensagem(string mensagem)
+        {
+            _mensagensEnviadas.Add(mensagem);
+        }
+        public string ReceberMensagem()
+        {
+            _mensagensRecebidas.TryDequeue(out string mensagem);
+            return mensagem;
+        }
+
+
         public void Dispose()
         {
             Console.WriteLine("Encerrando conexões...");
-            // Fecha todos os recursos na ordem correta
             Writer1?.Dispose();
             Reader1?.Dispose();
             _client1?.Close();

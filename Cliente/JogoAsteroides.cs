@@ -1,12 +1,12 @@
 ﻿using Asteroides.Compartilhado.Contratos;
 using Cliente.Entidades;
 using Cliente.Servicos;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Monogame.Processing;
 using System.Text.Json;
 using Asteroides.Compartilhado.Interfaces;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Cliente;
 
@@ -27,20 +27,21 @@ public class JogoAsteroides : Processing
     public JogoAsteroides(GerenciadorDeRede gerenciadorDeRede)
     {
         _gerenciadorDeRede = gerenciadorDeRede;
+
+
     }
 
     public override void Setup()
     {
         size(1280, 720);
-
         _spriteNave = loadImage("Content/nave.png");
         _spriteAsteroide = loadImage("Content/AsteroidBrown.png");
         _spriteTiro = loadImage("Content/tiro.png");
-
     }
 
     public override void Draw()
     {
+
         Teclas();
         InputCliente inputCliente = new InputCliente
         {
@@ -113,6 +114,9 @@ public class JogoAsteroides : Processing
 
     //TEstado = Coisas que tem ID
     // TEntidade = Coisas que tem Estado e ID
+    //SincronizarListaComDicionario recebe uma lista de coisas que possuem um ID (Estados)
+    //Um dicionário de coisas que possuem um estado que tem ID
+    //uma função que cria uma nova entidade a partir de um estado (entidade que possui ID) e retorna uma entidade que possui o estado que foi passado
     private void SincronizarListaComDicionario<TEstado, TEntidade>(
         List<TEstado> listaDeEstados,
         Dictionary<int, TEntidade> dicionarioDeEntidades,
