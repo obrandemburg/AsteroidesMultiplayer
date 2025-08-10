@@ -10,6 +10,7 @@ namespace Servidor
     internal class GerenciadorDeRede : IDisposable
     {
 
+        public event Action<string> OnMensagemRecebida;
         public StreamReader Reader1 { get; private set; }
         public StreamWriter Writer1 { get; private set; }
         public StreamReader Reader2 { get; private set; }
@@ -19,10 +20,10 @@ namespace Servidor
         private TcpClient _client1;
         private TcpClient _client2;
 
-        private ConcurrentQueue<string> _mensagensRecebidas = new ConcurrentQueue<string>();
-        private BlockingCollection<string> _mensagensEnviadas = new BlockingCollection<string>();
+        private readonly BlockingCollection<string> _mensagensRecebidas = new BlockingCollection<string>();
+        private readonly BlockingCollection<string> _mensagensEnviadas = new BlockingCollection<string>();
 
-        CancellationTokenSource _cts = new CancellationTokenSource();
+        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
 
         public GerenciadorDeRede()
         {
@@ -50,21 +51,27 @@ namespace Servidor
 
             Console.WriteLine("Ambos os clientes estão conectados e prontos para comunicação.");
             Console.WriteLine("Iniciando Leitor e escritor em threads diferentes");
-            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, "Cliente 1"));
-            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, "Cliente 2"));
+            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, "Cliente 1", ConsoleColor.Cyan));
+            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, "Cliente 2", ConsoleColor.Yellow));
             Task tarefa3 = Task.Run(() => EnviarMensagemAsync(_cts.Token));
+            Task tarefa4 = Task.Run(() => ProcessarRecebidosLoop(_cts.Token));
         }
 
-        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, string cliente)
+        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, string cliente, ConsoleColor cor)
         {
+            ConsoleColor corOriginal = Console.ForegroundColor;
+            Console.ForegroundColor = cor;
             Console.WriteLine($"Ouvindo {cliente}.");
             try
             {
                 string? json;
                 while ((json = await clienteReader.ReadLineAsync(token)) != null)
                 {
-                    _mensagensRecebidas.Enqueue(json);
-                    Console.WriteLine($"Mensagem recebida de {cliente}: {json}");
+                    Console.ForegroundColor = cor;
+                    _mensagensRecebidas.Add(json);
+                    Console.WriteLine($"[Gerenciador de Rede] Mensagem recebida de {cliente}: {json}");
+                    Console.WriteLine();
+                    Console.ForegroundColor = corOriginal;
                 }
 
                 Console.WriteLine($"{cliente} desconectou de forma limpa.");
@@ -97,7 +104,7 @@ namespace Servidor
                     Task tarefa1 = Writer1.WriteLineAsync(mensagem);
                     Task tarefa2 = Writer2.WriteLineAsync(mensagem);
                     await Task.WhenAll(tarefa1, tarefa2);
-                    Console.WriteLine($"Mensagem enviada: {mensagem}");
+                    Console.WriteLine($"[Gerenciador de Rede] Mensagem enviada: {mensagem}");
                 }
             }
             catch (OperationCanceledException)
@@ -105,15 +112,33 @@ namespace Servidor
                 Console.WriteLine("Tarefa de envio de mensagens cancelada.");
             }
         }
+        private void ProcessarRecebidosLoop(CancellationToken token)
+        {
+            Console.WriteLine("[TAREFA INICIADA] Processador de Mensagens Recebidas.");
+            try
+            {
+                // Este foreach espera passivamente até que uma mensagem seja adicionada à fila _mensagensRecebidas.
+                foreach (var json in _mensagensRecebidas.GetConsumingEnumerable(token))
+                {
+                    // Dispara o evento para notificar o código externo.
+                    OnMensagemRecebida?.Invoke(json);
+                }
+            }
+            catch (OperationCanceledException) { Console.WriteLine("Tarefa de processamento cancelada."); }
+        }
 
         public void EnviarMensagem(string mensagem)
         {
             _mensagensEnviadas.Add(mensagem);
         }
-        public string ReceberMensagem()
+
+        public void Encerrar()
         {
-            _mensagensRecebidas.TryDequeue(out string mensagem);
-            return mensagem;
+            if (!_cts.IsCancellationRequested)
+            {
+                Console.WriteLine("--- Encerrando o servidor... ---");
+                _cts.Cancel();
+            }
         }
 
 
