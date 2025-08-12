@@ -7,7 +7,8 @@ public static class Program
 
     public static async Task Main()
     {
-        string ipServidor = "187.20.76.23";
+        //string ipServidor = "187.20.76.23";
+        string ipServidor = "localhost";
         int portaServidor = 12345;
 
         Console.Title = "CLIENTE";

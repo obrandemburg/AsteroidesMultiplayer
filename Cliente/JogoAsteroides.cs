@@ -27,7 +27,7 @@ public class JogoAsteroides : Processing
     public JogoAsteroides(GerenciadorDeRede gerenciadorDeRede)
     {
         _gerenciadorDeRede = gerenciadorDeRede;
-
+        _gerenciadorDeRede.OnMensagemRecebida += ProcessarMensagemDoServidor;
 
     }
 
@@ -54,11 +54,6 @@ public class JogoAsteroides : Processing
         _gerenciadorDeRede.EnviarMensagem(inputCliente);
         _atirando = false;
 
-        while (_gerenciadorDeRede.TentarReceberMensagem(out string jsonRecebido))
-        {
-            // Para cada mensagem (string JSON), nós a processamos.
-            ProcessarMensagemDoServidor(jsonRecebido);
-        }
         background(10, 10, 20);
 
         foreach (var asteroide in _asteroides.Values)

@@ -12,8 +12,10 @@ namespace Cliente.Servicos
         private StreamReader _leitor;
         private StreamWriter _escritor;
 
-        private readonly ConcurrentQueue<string> _filaDeEnvio = new ConcurrentQueue<string>();
-        private readonly ConcurrentQueue<string> _filaDeRecebimento = new ConcurrentQueue<string>();
+        private readonly BlockingCollection<string> _filaDeEnvio = new BlockingCollection<string>();
+        private readonly BlockingCollection<string> _filaDeRecebimento = new BlockingCollection<string>();
+
+        public event Action<string> OnMensagemRecebida;
 
         private CancellationTokenSource _cts = new CancellationTokenSource();
 
@@ -56,6 +58,7 @@ namespace Cliente.Servicos
 
             Task.Run(() => LoopDeRecebimentoAsync(_cts.Token));
             Task.Run(() => LoopDeEnvioAsync(_cts.Token));
+            Task.Run(() => AvisoMensagemRecebida(_cts.Token));
         }
 
         public void EnviarMensagem(MensagemBase mensagem)
@@ -63,32 +66,27 @@ namespace Cliente.Servicos
             if (mensagem != null)
             {
                 string jsonMensagem = JsonSerializer.Serialize(mensagem, mensagem.GetType());
-                _filaDeEnvio.Enqueue(jsonMensagem);
+                _filaDeEnvio.Add(jsonMensagem);
             }
         }
+
         private async Task LoopDeEnvioAsync(CancellationToken token)
         {
             Console.WriteLine("Thread de envio iniciada.");
-            while (!token.IsCancellationRequested)
+
+            try
             {
-                try
+                foreach (var mensagemjson in _filaDeEnvio.GetConsumingEnumerable(token))
                 {
-                    if (_filaDeEnvio.TryDequeue(out string mensagem))
-                    {
-                        await _escritor.WriteLineAsync(mensagem);
-                    }
-                    await Task.Delay(10, token);
+                    await _escritor.WriteLineAsync(mensagemjson);
                 }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex) { Console.WriteLine($"Erro no envio: {ex.Message}"); break; }
             }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Console.WriteLine($"Erro no envio: {ex.Message}");}
+
             Console.WriteLine("Thread de envio finalizada.");
         }
 
-        public bool TentarReceberMensagem(out string mensagem)
-        {
-            return _filaDeRecebimento.TryDequeue(out mensagem);
-        }
         private async Task LoopDeRecebimentoAsync(CancellationToken token)
         {
             Console.WriteLine("Thread de recebimento iniciada.");
@@ -105,12 +103,22 @@ namespace Cliente.Servicos
                         break;
                     }
 
-                    _filaDeRecebimento.Enqueue(dadosRecebidos);
+                    _filaDeRecebimento.Add(dadosRecebidos);
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex) { Console.WriteLine($"Erro no recebimento: {ex.Message}"); break; }
             }
             Console.WriteLine("Thread de recebimento finalizada.");
+        }
+        
+        private void AvisoMensagemRecebida(CancellationToken token)
+        {
+            Console.WriteLine("Iniciado Alerta de recebimento de mensagens");
+            foreach(var mensagemJson in _filaDeRecebimento.GetConsumingEnumerable(token))
+            {
+                OnMensagemRecebida?.Invoke(mensagemJson);
+            }
+
         }
         public void Desconectar()
         {
