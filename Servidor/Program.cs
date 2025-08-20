@@ -1,5 +1,9 @@
-﻿using System;
+﻿using Microsoft.Xna.Framework;
+using System;
 using System.Threading.Tasks;
+using System.Text.Json;
+using Asteroides.Compartilhado.Contratos;
+using Microsoft.VisualBasic;
 
 public class Programa
 {
@@ -8,7 +12,7 @@ public class Programa
     public Programa()
     {
         _servidor = new Servidor.GerenciadorDeRede();
-        //_servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
+        _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
     }
 
     /// <summary>
@@ -52,8 +56,36 @@ public class Programa
 
     private void ProcessarLogicaDoJogo(string mensagemJson)
     {
-        
+        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(mensagemJson);
+
+        switch (mensagemDesserializada.id)
+        {
+            case 1:
+
+                break;
+
+            case 2:
+                break;
+        }
     }
+    /*
+    private static void AtualizarNave(bool left, bool right, bool up, bool down, int w, int h)
+    {
+        Vector2 dir = Vector2.Zero;
+        if (left) dir.X -= 2;
+        if (right) dir.X += 2;
+        if (up) dir.Y -= 2;
+        if (down) dir.Y += 2;
+
+        if (dir != Vector2.Zero) dir.Normalize();
+        Posicao += dir * Vel;
+
+        /* mantém dentro da tela 
+        Posicao.X = Math.Clamp(Posicao.X, HalfW, w - HalfW);
+        Posicao.Y = Math.Clamp(Posicao.Y, HalfH, h - HalfH);
+    }
+
+*/
 
     public static async Task Main(string[] args)
     {

@@ -69,8 +69,8 @@ namespace Servidor
                 {
                     Console.ForegroundColor = cor;
                     _mensagensRecebidas.Add(json);
-                    Console.WriteLine($"[Gerenciador de Rede] Mensagem recebida de {cliente}: {json}");
-                    Console.WriteLine();
+                    //Console.WriteLine($"[Gerenciador de Rede] Mensagem recebida de {cliente}: {json}");
+                    //Console.WriteLine();
                     Console.ForegroundColor = corOriginal;
                 }
 

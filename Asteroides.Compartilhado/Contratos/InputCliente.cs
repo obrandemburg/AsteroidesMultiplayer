@@ -7,6 +7,7 @@
         public bool Esquerda { get; set; }
         public bool Direita { get; set; }
         public bool Atirando { get; set; }
+        public int id { get; set; }
         public InputCliente() {
             Tipo = "INPUT_JOGADOR";
         }
