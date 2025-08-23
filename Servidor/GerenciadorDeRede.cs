@@ -10,17 +10,19 @@ namespace Servidor
     internal class GerenciadorDeRede : IDisposable
     {
 
-        public event Action<string> OnMensagemRecebida;
+        public event Action<MensagemRecebida> OnMensagemRecebida;
         public StreamReader Reader1 { get; private set; }
         public StreamWriter Writer1 { get; private set; }
         public StreamReader Reader2 { get; private set; }
         public StreamWriter Writer2 { get; private set; }
 
+        public record class MensagemRecebida(int idCliente, string ConteudoJson);
+
         private TcpListener _listener;
         private TcpClient _client1;
         private TcpClient _client2;
 
-        private readonly BlockingCollection<string> _mensagensRecebidas = new BlockingCollection<string>();
+        private readonly BlockingCollection<MensagemRecebida> _mensagensRecebidas = new BlockingCollection<MensagemRecebida>();
         private readonly BlockingCollection<string> _mensagensEnviadas = new BlockingCollection<string>();
 
         private readonly CancellationTokenSource _cts = new CancellationTokenSource();
@@ -39,7 +41,6 @@ namespace Servidor
             var stream1 = _client1.GetStream();
             Reader1 = new StreamReader(stream1);
             Writer1 = new StreamWriter(stream1) { AutoFlush = true };
-            await Writer1.WriteLineAsync("1");
 
             Console.WriteLine("Cliente 1 conectado!");
 
@@ -47,31 +48,30 @@ namespace Servidor
             var stream2 = _client2.GetStream();
             Reader2 = new StreamReader(stream2);
             Writer2 = new StreamWriter(stream2) { AutoFlush = true };
-            await Writer2.WriteLineAsync("2");
 
             Console.WriteLine("Cliente 2 conectado!");
 
             Console.WriteLine("Ambos os clientes estão conectados e prontos para comunicação.");
             Console.WriteLine("Iniciando Leitor e escritor em threads diferentes");
-            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, "Cliente 1", ConsoleColor.Cyan));
-            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, "Cliente 2", ConsoleColor.Yellow));
+            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, 1, ConsoleColor.Cyan));
+            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, 2, ConsoleColor.Yellow));
             Task tarefa3 = Task.Run(() => EnviarMensagemAsync(_cts.Token));
             Task tarefa4 = Task.Run(() => ProcessarRecebidosLoop(_cts.Token));
         }
 
-        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, string cliente, ConsoleColor cor)
+        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, int cliente, ConsoleColor cor)
         {
             ConsoleColor corOriginal = Console.ForegroundColor;
             Console.ForegroundColor = cor;
-            Console.WriteLine($"Ouvindo {cliente}.");
+            Console.WriteLine($"Ouvindo Cliente {cliente}.");
             try
             {
                 string? json;
                 while ((json = await clienteReader.ReadLineAsync(token)) != null)
                 {
-                    Console.ForegroundColor = cor;
-                    _mensagensRecebidas.Add(json);
-                    Console.ForegroundColor = corOriginal;
+                    //Console.ForegroundColor = cor;
+                    _mensagensRecebidas.Add(new MensagemRecebida(cliente, json));
+                    //Console.ForegroundColor = corOriginal;
                 }
 
                 Console.WriteLine($"{cliente} desconectou de forma limpa.");

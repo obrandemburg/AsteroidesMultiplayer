@@ -1,6 +1,4 @@
 ﻿using Asteroides.Compartilhado.Estados;
-using System.Collections.Generic;
-
 namespace Asteroides.Compartilhado.Contratos
 {
     public class EstadoMundoMensagem : MensagemBase
@@ -8,6 +6,7 @@ namespace Asteroides.Compartilhado.Contratos
         public List<NaveEstado> Naves { get; set; }
         public List<AsteroideEstado> Asteroides { get; set; }
         public List<TiroEstado> Tiros { get; set; }
+        public int Pontos { get; set; }
 
         public EstadoMundoMensagem()
         {

@@ -1,23 +1,23 @@
 ﻿using Asteroides;
 using Asteroides.Compartilhado.Contratos;
+using Asteroides.Compartilhado.Estados;
 using Microsoft.Xna.Framework;
 using System;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.Diagnostics;
+using static Servidor.GerenciadorDeRede;
 
 public class Programa
 {
     //Variáveis do jogo:
-    Nave nave1;
-    Nave nave2;
+    readonly List<Nave> naves = new();
     readonly List<Tiro> tiros = new();
     readonly List<Asteroide> asteroides = new();
     readonly Random rnd = new();
     int pontos = 0;
     const int width = 1280, height = 720;
-    
+
 
     //Variáveis de controle
     CancellationTokenSource cts = new();
@@ -30,14 +30,11 @@ public class Programa
     {
         _servidor = new Servidor.GerenciadorDeRede();
         _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
-        nave1 = new Nave(new Vector2(100, 100));
-        nave2 = new Nave(new Vector2(200, 100));
+        naves.Add (new Nave(new Vector2(100, 100)));
+        naves.Add(new Nave(new Vector2(200, 100)));
         Task.Run(() => ContaFrames(cts.Token));
     }
 
-    /// <summary>
-    /// Orquestra o ciclo de vida da aplicação: Iniciar, Aguardar e Encerrar.
-    /// </summary>
     public async Task ExecutarAsync()
     {
         Console.WriteLine("Aplicação iniciada.");
@@ -74,24 +71,104 @@ public class Programa
         Console.WriteLine("Aplicação finalizada.");
     }
 
-    private void ProcessarLogicaDoJogo(string mensagemJson)
+    private void ProcessarLogicaDoJogo(MensagemRecebida msg)
     {
-        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(mensagemJson);
 
-        switch (mensagemDesserializada.id)
+        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(msg.ConteudoJson);
+        Console.WriteLine(mensagemDesserializada);
+        Console.WriteLine(msg.idCliente);
+        switch (msg.idCliente)
         {
             case 1:
                 //atualiza a nave 1
-                nave1.ConverterParaVariavel(mensagemDesserializada);
+                naves[0].ConverterParaVariavel(mensagemDesserializada);
                 break;
 
             case 2:
                 //atualiza a nave 2
-                nave2.ConverterParaVariavel(mensagemDesserializada);
+                naves[1].ConverterParaVariavel(mensagemDesserializada);
                 break;
         }
+        //atualiza os tiros
+        foreach (var t in tiros)
+        {
+            t.Atualizar();
+            if (t.ForaDaTela(height))
+            {
+                tiros.Remove(t);
+                break;
+            }
+        }
+        //atualiza os asteroides
+        foreach (var a in asteroides)
+        {
+            a.Atualizar();
+            //verifica colisão com tiros
+            foreach (var t in tiros)
+            {
+                if (Vector2.Distance(a.pos, t.Pos) < a.Raio)
+                {
+                    asteroides.Remove(a);
+                    tiros.Remove(t);
+                    pontos += 100;
+                    break;
+                }
+            }
+        }
+        /*
+        //verifica colisão com naves
+        foreach (var a in asteroides)
+        {
+            foreach (var n in naves)
+            {
+                if (Vector2.Distance(a.pos, n.Posicao) < a.Raio + 8)
+                {
+                    asteroides.Remove(a);
+                    break;
+                }
+            }
+        }
+        */
+        //envia o estado do mundo atualizado para os clientes
+        var estadoDoMundo = CriarEstadoDoMundo();
+        var estadoJson = JsonSerializer.Serialize(estadoDoMundo);
+        _servidor.EnviarMensagem(estadoJson);
 
 
+    }
+    private EstadoMundoMensagem CriarEstadoDoMundo()
+    {
+        // Usa .Select() em TODAS as listas!
+        var navesEstado = naves.Select(n => new NaveEstado
+        {
+            //Id = n.Id,
+            PosicaoX = n.Posicao.X,
+            PosicaoY = n.Posicao.Y
+        }).ToList();
+
+        var tirosEstado = tiros.Select(t => new TiroEstado
+        {
+            PosicaoX = t.Pos.X,
+            PosicaoY = t.Pos.Y,
+        }).ToList();
+
+        var asteroidesEstado = asteroides.Select(a => new AsteroideEstado
+        {
+            PosicaoX = a.pos.X,
+            PosicaoY = a.pos.Y,
+        }).ToList();
+
+
+        // Monta o objeto final para enviar
+        var estado = new EstadoMundoMensagem
+        {
+            Naves = navesEstado,
+            Tiros = tirosEstado,
+            Asteroides = asteroidesEstado,
+            Pontos = this.pontos
+        };
+
+        return estado;
     }
     Asteroide NovoAsteroide()
     {
@@ -101,42 +178,42 @@ public class Programa
     }
 
 
-private async Task ContaFrames(CancellationToken cts)
-{
-    const double targetFps = 60.0;
-
-    const double targetFrameTimeMilliseconds = 1000.0 / targetFps;
-
-    var stopwatch = new Stopwatch();
-
-    while (!cts.IsCancellationRequested)
+    private async Task ContaFrames(CancellationToken cts)
     {
-        stopwatch.Restart();
+        const double targetFps = 60.0;
 
-        contagemDeFrames += 1;
-        if (contagemDeFrames >= 60)
+        const double targetFrameTimeMilliseconds = 1000.0 / targetFps;
+
+        var stopwatch = new Stopwatch();
+
+        while (!cts.IsCancellationRequested)
         {
-            contagemDeFrames = 0;
-        }
+            stopwatch.Restart();
 
-        if (contagemDeFrames % 40 == 0)
-        {
-            asteroides.Add(NovoAsteroide());
-        }
+            contagemDeFrames += 1;
+            if (contagemDeFrames >= 60)
+            {
+                contagemDeFrames = 0;
+            }
 
-        double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+            if (contagemDeFrames % 40 == 0)
+            {
+                asteroides.Add(NovoAsteroide());
+            }
 
-        var timeToWait = (int)(targetFrameTimeMilliseconds - elapsedMilliseconds);
+            double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
 
-        if (timeToWait > 0)
-        {
-            await Task.Delay(timeToWait);
+            var timeToWait = (int)(targetFrameTimeMilliseconds - elapsedMilliseconds);
+
+            if (timeToWait > 0)
+            {
+                await Task.Delay(timeToWait);
+            }
         }
     }
-}
 
 
-public static async Task Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var programa = new Programa();
         await programa.ExecutarAsync();

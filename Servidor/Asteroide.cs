@@ -4,7 +4,7 @@ namespace Asteroides;
 
 class Asteroide
 {
-    Vector2 pos, vel;
+    public Vector2 pos, vel;
     public float Raio { get; }
 
     public Asteroide(Vector2 p, Vector2 v, float r)

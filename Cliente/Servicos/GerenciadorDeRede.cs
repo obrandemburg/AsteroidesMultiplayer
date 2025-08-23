@@ -7,7 +7,6 @@ namespace Cliente.Servicos
 {
     public class GerenciadorDeRede
     {
-        public int IdCliente;
 
         private TcpClient _cliente;
         private NetworkStream _fluxo;
@@ -48,10 +47,6 @@ namespace Cliente.Servicos
                 _leitor = new StreamReader(_fluxo);
                 _escritor = new StreamWriter(_fluxo) { AutoFlush = true };
 
-                Console.WriteLine("Recebendo ID");
-                string idRecebido = await _leitor.ReadLineAsync();
-                Console.WriteLine(idRecebido);
-                IdCliente = int.Parse(idRecebido);
             }
             catch (SocketException)
             {
