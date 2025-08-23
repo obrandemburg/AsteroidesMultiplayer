@@ -1,3 +1,4 @@
+using Asteroides.Compartilhado.Contratos;
 using Microsoft.Xna.Framework;
   // só para comparar com Keys.*
 using Monogame.Processing;
@@ -8,13 +9,21 @@ namespace Asteroides;
 class Nave
 {
     public Vector2 Posicao;
-    PImage spriteTiro;
     const float Vel = 4f;
     const float HalfW = 10, HalfH = 10;
 
     public Nave(Vector2 start)
     {
         Posicao = start;
+    }
+    public void ConverterParaVariavel(InputCliente mensagemJson)
+    {
+        bool left = mensagemJson.Esquerda;
+        bool right = mensagemJson.Direita;
+        bool up = mensagemJson.Cima;
+        bool down = mensagemJson.Baixo;
+        //bool atirando = mensagemJson.Atirando;
+        Atualizar(left, right, up, down, 1280, 720);
     }
 
     public void Atualizar(bool left, bool right, bool up, bool down, int w, int h)

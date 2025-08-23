@@ -1,18 +1,38 @@
-﻿using Microsoft.Xna.Framework;
-using System;
-using System.Threading.Tasks;
-using System.Text.Json;
+﻿using Asteroides;
 using Asteroides.Compartilhado.Contratos;
-using Microsoft.VisualBasic;
+using Microsoft.Xna.Framework;
+using System;
+using System.Diagnostics;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 public class Programa
 {
+    //Variáveis do jogo:
+    Nave nave1;
+    Nave nave2;
+    readonly List<Tiro> tiros = new();
+    readonly List<Asteroide> asteroides = new();
+    readonly Random rnd = new();
+    int pontos = 0;
+    const int width = 1280, height = 720;
+    
+
+    //Variáveis de controle
+    CancellationTokenSource cts = new();
+    int contagemDeFrames = 0;
+
+
     private readonly Servidor.GerenciadorDeRede _servidor;
 
     public Programa()
     {
         _servidor = new Servidor.GerenciadorDeRede();
         _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
+        nave1 = new Nave(new Vector2(100, 100));
+        nave2 = new Nave(new Vector2(200, 100));
+        Task.Run(() => ContaFrames(cts.Token));
     }
 
     /// <summary>
@@ -61,35 +81,66 @@ public class Programa
         switch (mensagemDesserializada.id)
         {
             case 1:
-
+                //atualiza a nave 1
+                nave1.ConverterParaVariavel(mensagemDesserializada);
                 break;
 
             case 2:
+                //atualiza a nave 2
+                nave2.ConverterParaVariavel(mensagemDesserializada);
                 break;
         }
+
+
     }
-    /*
-    private static void AtualizarNave(bool left, bool right, bool up, bool down, int w, int h)
+    Asteroide NovoAsteroide()
     {
-        Vector2 dir = Vector2.Zero;
-        if (left) dir.X -= 2;
-        if (right) dir.X += 2;
-        if (up) dir.Y -= 2;
-        if (down) dir.Y += 2;
-
-        if (dir != Vector2.Zero) dir.Normalize();
-        Posicao += dir * Vel;
-
-        /* mantém dentro da tela 
-        Posicao.X = Math.Clamp(Posicao.X, HalfW, w - HalfW);
-        Posicao.Y = Math.Clamp(Posicao.Y, HalfH, h - HalfH);
+        float x = rnd.Next(width);
+        float velY = 2f + (float)rnd.NextDouble() * 2f;   // 2–4 px/frame
+        return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25);
     }
 
-*/
 
-    public static async Task Main(string[] args)
+private async Task ContaFrames(CancellationToken cts)
+{
+    const double targetFps = 60.0;
+
+    const double targetFrameTimeMilliseconds = 1000.0 / targetFps;
+
+    var stopwatch = new Stopwatch();
+
+    while (!cts.IsCancellationRequested)
+    {
+        stopwatch.Restart();
+
+        contagemDeFrames += 1;
+        if (contagemDeFrames >= 60)
+        {
+            contagemDeFrames = 0;
+        }
+
+        if (contagemDeFrames % 40 == 0)
+        {
+            asteroides.Add(NovoAsteroide());
+        }
+
+        double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+
+        var timeToWait = (int)(targetFrameTimeMilliseconds - elapsedMilliseconds);
+
+        if (timeToWait > 0)
+        {
+            await Task.Delay(timeToWait);
+        }
+    }
+}
+
+
+public static async Task Main(string[] args)
     {
         var programa = new Programa();
         await programa.ExecutarAsync();
     }
+
+
 }

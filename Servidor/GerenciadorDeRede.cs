@@ -39,6 +39,7 @@ namespace Servidor
             var stream1 = _client1.GetStream();
             Reader1 = new StreamReader(stream1);
             Writer1 = new StreamWriter(stream1) { AutoFlush = true };
+            await Writer1.WriteLineAsync("1");
 
             Console.WriteLine("Cliente 1 conectado!");
 
@@ -46,6 +47,7 @@ namespace Servidor
             var stream2 = _client2.GetStream();
             Reader2 = new StreamReader(stream2);
             Writer2 = new StreamWriter(stream2) { AutoFlush = true };
+            await Writer2.WriteLineAsync("2");
 
             Console.WriteLine("Cliente 2 conectado!");
 
@@ -69,8 +71,6 @@ namespace Servidor
                 {
                     Console.ForegroundColor = cor;
                     _mensagensRecebidas.Add(json);
-                    //Console.WriteLine($"[Gerenciador de Rede] Mensagem recebida de {cliente}: {json}");
-                    //Console.WriteLine();
                     Console.ForegroundColor = corOriginal;
                 }
 

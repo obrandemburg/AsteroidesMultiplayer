@@ -49,7 +49,8 @@ public class JogoAsteroides : Processing
             Baixo = _baixo,
             Esquerda = _esquerda,
             Direita = _direita,
-            Atirando = _atirando
+            Atirando = _atirando,
+            id = _gerenciadorDeRede.IdCliente
         };
         _gerenciadorDeRede.EnviarMensagem(inputCliente);
         _atirando = false;
