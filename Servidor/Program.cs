@@ -73,9 +73,12 @@ public class Programa
 
     private void ProcessarLogicaDoJogo(MensagemRecebida msg)
     {
+        Console.WriteLine("___________________________");
+        Console.WriteLine(msg.ConteudoJson);
+        Console.WriteLine("___________________________");
 
-        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(msg.ConteudoJson);
-        Console.WriteLine(mensagemDesserializada);
+        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(msg.ConteudoJson.Tipo);
+        Console.WriteLine(mensagemDesserializada.Cima);
         Console.WriteLine(msg.idCliente);
         switch (msg.idCliente)
         {

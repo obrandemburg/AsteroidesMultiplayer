@@ -1,8 +1,10 @@
-﻿using System;
+﻿using Asteroides.Compartilhado.Contratos;
+using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Servidor
@@ -16,7 +18,7 @@ namespace Servidor
         public StreamReader Reader2 { get; private set; }
         public StreamWriter Writer2 { get; private set; }
 
-        public record class MensagemRecebida(int idCliente, string ConteudoJson);
+        public record class MensagemRecebida(int idCliente, InputCliente ConteudoJson);
 
         private TcpListener _listener;
         private TcpClient _client1;
@@ -69,9 +71,10 @@ namespace Servidor
                 string? json;
                 while ((json = await clienteReader.ReadLineAsync(token)) != null)
                 {
-                    //Console.ForegroundColor = cor;
-                    _mensagensRecebidas.Add(new MensagemRecebida(cliente, json));
-                    //Console.ForegroundColor = corOriginal;
+
+                    InputCliente mensagem = JsonSerializer.Deserialize<InputCliente>(json);
+
+                    _mensagensRecebidas.Add(new MensagemRecebida(cliente, mensagem));
                 }
 
                 Console.WriteLine($"{cliente} desconectou de forma limpa.");
