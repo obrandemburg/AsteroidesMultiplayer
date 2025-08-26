@@ -27,8 +27,6 @@ public class JogoAsteroides : Processing
     public JogoAsteroides(GerenciadorDeRede gerenciadorDeRede)
     {
         _gerenciadorDeRede = gerenciadorDeRede;
-        _gerenciadorDeRede.OnMensagemRecebida += ProcessarMensagemDoServidor;
-
     }
 
     public override void Setup()
@@ -37,6 +35,8 @@ public class JogoAsteroides : Processing
         _spriteNave = loadImage("Content/nave.png");
         _spriteAsteroide = loadImage("Content/AsteroidBrown.png");
         _spriteTiro = loadImage("Content/tiro.png");
+
+        _gerenciadorDeRede.OnMensagemRecebida += ProcessarMensagemDoServidor;
     }
 
     public override void Draw()
@@ -77,6 +77,9 @@ public class JogoAsteroides : Processing
     }
     private void ProcessarMensagemDoServidor(string json) //Recebe uma string JSON e cria um objeto que ela representa
     {
+        Console.WriteLine("String json recebida do servidor: " + json);
+        Console.WriteLine();
+
         try
         {
             var msgBase = JsonSerializer.Deserialize<MensagemBase>(json);
@@ -93,6 +96,7 @@ public class JogoAsteroides : Processing
         catch (Exception ex)
         {
             Console.WriteLine($"Erro ao processar mensagem JSON: {ex.Message}");
+            Console.ReadLine();
         }
     }
     private void AtualizarEntidades(EstadoMundoMensagem estadoMundo)

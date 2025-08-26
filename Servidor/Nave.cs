@@ -1,6 +1,5 @@
 using Asteroides.Compartilhado.Contratos;
 using Microsoft.Xna.Framework;
-  // só para comparar com Keys.*
 using Monogame.Processing;
 
 
@@ -9,12 +8,15 @@ namespace Asteroides;
 class Nave
 {
     public Vector2 Posicao;
+    public int Id { get; set; }
     const float Vel = 4f;
     const float HalfW = 10, HalfH = 10;
+    int tid = 0;
 
-    public Nave(Vector2 start)
+    public Nave(Vector2 start, int id)
     {
         Posicao = start;
+        Id = id;
     }
     public void ConverterParaVariavel(InputCliente mensagemJson)
     {
@@ -43,5 +45,5 @@ class Nave
     }
 
 
-    public Tiro Atirar() => new(Posicao + new Vector2(0, -12), new Vector2(0, -8));
+    public Tiro Atirar() => new(Posicao + new Vector2(0, -12), new Vector2(0, -8), tid);
 }

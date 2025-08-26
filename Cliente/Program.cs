@@ -23,6 +23,7 @@ public static class Program
         catch (Exception ex)
         {
             Console.WriteLine("ERRO: " + ex.Message);
+            Console.ReadLine();
         }
     }
 

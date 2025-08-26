@@ -17,6 +17,7 @@ public class Programa
     readonly Random rnd = new();
     int pontos = 0;
     const int width = 1280, height = 720;
+    int aid = 0;
 
 
     //Variáveis de controle
@@ -30,8 +31,8 @@ public class Programa
     {
         _servidor = new Servidor.GerenciadorDeRede();
         _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
-        naves.Add (new Nave(new Vector2(100, 100)));
-        naves.Add(new Nave(new Vector2(200, 100)));
+        naves.Add (new Nave(new Vector2(100, 100), 1));
+        naves.Add(new Nave(new Vector2(200, 100), 2));
         Task.Run(() => ContaFrames(cts.Token));
     }
 
@@ -73,23 +74,20 @@ public class Programa
 
     private void ProcessarLogicaDoJogo(MensagemRecebida msg)
     {
-        Console.WriteLine("___________________________");
-        Console.WriteLine(msg.ConteudoJson);
-        Console.WriteLine("___________________________");
 
-        var mensagemDesserializada = JsonSerializer.Deserialize<InputCliente>(msg.ConteudoJson.Tipo);
-        Console.WriteLine(mensagemDesserializada.Cima);
-        Console.WriteLine(msg.idCliente);
+        Console.WriteLine("conteúdo json chegando como parâmetro de ProcessarLogicadoJogo: " + msg.inputCliente);
+        Console.WriteLine();
+
         switch (msg.idCliente)
         {
             case 1:
                 //atualiza a nave 1
-                naves[0].ConverterParaVariavel(mensagemDesserializada);
+                naves[0].ConverterParaVariavel(msg.inputCliente);
                 break;
 
             case 2:
                 //atualiza a nave 2
-                naves[1].ConverterParaVariavel(mensagemDesserializada);
+                naves[1].ConverterParaVariavel(msg.inputCliente);
                 break;
         }
         //atualiza os tiros
@@ -137,6 +135,9 @@ public class Programa
         var estadoJson = JsonSerializer.Serialize(estadoDoMundo);
         _servidor.EnviarMensagem(estadoJson);
 
+        Console.WriteLine($"Enviado EstadoMundo para o cliente a string: {estadoJson}");
+        Console.WriteLine();
+
 
     }
     private EstadoMundoMensagem CriarEstadoDoMundo()
@@ -144,19 +145,21 @@ public class Programa
         // Usa .Select() em TODAS as listas!
         var navesEstado = naves.Select(n => new NaveEstado
         {
-            //Id = n.Id,
+            Id = n.Id,
             PosicaoX = n.Posicao.X,
             PosicaoY = n.Posicao.Y
         }).ToList();
 
         var tirosEstado = tiros.Select(t => new TiroEstado
         {
+            Id = t.Id,
             PosicaoX = t.Pos.X,
             PosicaoY = t.Pos.Y,
         }).ToList();
 
         var asteroidesEstado = asteroides.Select(a => new AsteroideEstado
         {
+            Id = a.Id,
             PosicaoX = a.pos.X,
             PosicaoY = a.pos.Y,
         }).ToList();
@@ -177,7 +180,7 @@ public class Programa
     {
         float x = rnd.Next(width);
         float velY = 2f + (float)rnd.NextDouble() * 2f;   // 2–4 px/frame
-        return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25);
+        return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25, aid);
     }
 
 
@@ -202,6 +205,7 @@ public class Programa
             if (contagemDeFrames % 40 == 0)
             {
                 asteroides.Add(NovoAsteroide());
+                aid++;
             }
 
             double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;

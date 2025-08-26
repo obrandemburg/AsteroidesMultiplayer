@@ -6,10 +6,12 @@ namespace Asteroides;
 class Tiro
 {
     Vector2 pos, vel;
-    public Tiro(Vector2 p, Vector2 v)
+    public int Id { get; set; }
+    public Tiro(Vector2 p, Vector2 v, int id)
     {
         pos = p;
         vel = v;
+        Id = id;
     }
 
     public void Atualizar() => pos += vel;

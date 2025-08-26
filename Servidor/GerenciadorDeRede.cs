@@ -18,7 +18,7 @@ namespace Servidor
         public StreamReader Reader2 { get; private set; }
         public StreamWriter Writer2 { get; private set; }
 
-        public record class MensagemRecebida(int idCliente, InputCliente ConteudoJson);
+        public record class MensagemRecebida(int idCliente, InputCliente inputCliente);
 
         private TcpListener _listener;
         private TcpClient _client1;
@@ -72,7 +72,19 @@ namespace Servidor
                 while ((json = await clienteReader.ReadLineAsync(token)) != null)
                 {
 
-                    InputCliente mensagem = JsonSerializer.Deserialize<InputCliente>(json);
+                    var dadosCliente = JsonSerializer.Deserialize<InputCliente>(json);
+
+                    InputCliente mensagem = new InputCliente
+                    {
+                        Cima = dadosCliente.Cima,
+                        Baixo = dadosCliente.Baixo,
+                        Esquerda = dadosCliente.Esquerda,
+                        Direita = dadosCliente.Direita,
+                        Atirando = dadosCliente.Atirando
+
+                    };
+
+                    
 
                     _mensagensRecebidas.Add(new MensagemRecebida(cliente, mensagem));
                 }
@@ -121,10 +133,10 @@ namespace Servidor
             try
             {
                 // Este foreach espera passivamente até que uma mensagem seja adicionada à fila _mensagensRecebidas.
-                foreach (var json in _mensagensRecebidas.GetConsumingEnumerable(token))
+                foreach (var inputcliente in _mensagensRecebidas.GetConsumingEnumerable(token))
                 {
                     // Dispara o evento para notificar o código externo.
-                    OnMensagemRecebida?.Invoke(json);
+                    OnMensagemRecebida?.Invoke(inputcliente);
                 }
             }
             catch (OperationCanceledException) { Console.WriteLine("Tarefa de processamento cancelada."); }

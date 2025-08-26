@@ -51,6 +51,7 @@ namespace Cliente.Servicos
             catch (SocketException)
             {
                 Console.WriteLine("Não foi possível conectar ao servidor.");
+                Console.ReadLine();
                 throw;
             }
         }
@@ -83,10 +84,20 @@ namespace Cliente.Servicos
                     await _escritor.WriteLineAsync(mensagemjson);
                 }
             }
-            catch (OperationCanceledException) { }
-            catch (Exception ex) { Console.WriteLine($"Erro no envio: {ex.Message}");}
+            catch (OperationCanceledException e)
+            {
+                Console.WriteLine($"Erro: {e.Message}");
+                Console.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Erro no envio: {ex.Message}");
+                Console.ReadLine();
+            }
 
             Console.WriteLine("Thread de envio finalizada.");
+            Console.ReadLine();
+
         }
 
         private async Task LoopDeRecebimentoAsync(CancellationToken token)
@@ -107,16 +118,24 @@ namespace Cliente.Servicos
 
                     _filaDeRecebimento.Add(dadosRecebidos);
                 }
-                catch (OperationCanceledException) { break; }
-                catch (Exception ex) { Console.WriteLine($"Erro no recebimento: {ex.Message}"); break; }
+                catch (OperationCanceledException e)
+                {
+                    Console.WriteLine($"Erro: {e.Message}");
+                    Console.ReadLine();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Erro no recebimento: {ex.Message}");
+                    Console.ReadLine();
+                }
             }
             Console.WriteLine("Thread de recebimento finalizada.");
         }
-        
+
         private void AvisoMensagemRecebida(CancellationToken token)
         {
             Console.WriteLine("Iniciado Alerta de recebimento de mensagens");
-            foreach(var mensagemJson in _filaDeRecebimento.GetConsumingEnumerable(token))
+            foreach (var mensagemJson in _filaDeRecebimento.GetConsumingEnumerable(token))
             {
                 OnMensagemRecebida?.Invoke(mensagemJson);
             }
