@@ -17,8 +17,8 @@ public class Programa
     readonly Random rnd = new();
     int pontos = 0;
     const int width = 1280, height = 720;
-    int aid = 0;
-
+    int idTiro = 1;
+    int idAsteroide = 1;
 
     //Variáveis de controle
     CancellationTokenSource cts = new();
@@ -31,7 +31,7 @@ public class Programa
     {
         _servidor = new Servidor.GerenciadorDeRede();
         _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
-        naves.Add (new Nave(new Vector2(100, 100), 1));
+        naves.Add(new Nave(new Vector2(100, 100), 1));
         naves.Add(new Nave(new Vector2(200, 100), 2));
         Task.Run(() => ContaFrames(cts.Token));
     }
@@ -74,72 +74,90 @@ public class Programa
 
     private void ProcessarLogicaDoJogo(MensagemRecebida msg)
     {
+        const int screenWidth = 1280;
+        const int screenHeight = 720;
 
-        Console.WriteLine("conteúdo json chegando como parâmetro de ProcessarLogicadoJogo: " + msg.inputCliente);
-        Console.WriteLine();
+        Tiro? novoTiro = null;
 
         switch (msg.idCliente)
         {
             case 1:
-                //atualiza a nave 1
-                naves[0].ConverterParaVariavel(msg.inputCliente);
+                novoTiro = naves[0].AtualizarEProcessarAcoes(msg.inputCliente, idTiro);
+                idTiro++;
                 break;
 
             case 2:
-                //atualiza a nave 2
-                naves[1].ConverterParaVariavel(msg.inputCliente);
+                novoTiro = naves[1].AtualizarEProcessarAcoes(msg.inputCliente, idTiro);
+                idTiro++;
                 break;
         }
-        //atualiza os tiros
-        foreach (var t in tiros)
+
+        if (novoTiro != null)
         {
+            tiros.Add(novoTiro);
+        }
+
+        for (int i = tiros.Count - 1; i >= 0; i--)
+        {
+            var t = tiros[i];
             t.Atualizar();
-            if (t.ForaDaTela(height))
+            if (t.ForaDaTela(screenHeight))
             {
-                tiros.Remove(t);
-                break;
+                tiros.RemoveAt(i);
             }
         }
-        //atualiza os asteroides
-        foreach (var a in asteroides)
+
+        for (int i = asteroides.Count - 1; i >= 0; i--)
         {
+
+            var a = asteroides[i];
             a.Atualizar();
-            //verifica colisão com tiros
-            foreach (var t in tiros)
+
+            if (a.ForaDaTela(screenHeight))
             {
-                if (Vector2.Distance(a.pos, t.Pos) < a.Raio)
+                asteroides.RemoveAt(i);
+                continue;
+            }
+
+
+            for (int j = tiros.Count - 1; j >= 0; j--)
+            {
+                var t = tiros[j];
+
+                if (a.Colide(t))
                 {
-                    asteroides.Remove(a);
-                    tiros.Remove(t);
+                    asteroides.RemoveAt(i);
+                    tiros.RemoveAt(j);
                     pontos += 100;
                     break;
                 }
             }
+
         }
-        /*
-        //verifica colisão com naves
-        foreach (var a in asteroides)
+
+        // VERIFICA COLISÃO COM NAVES
+        for (int i = asteroides.Count - 1; i >= 0; i--)
         {
+            var a = asteroides[i];
+
+            // Loop foreach é seguro aqui porque não estamos modificando a lista 'naves'
             foreach (var n in naves)
             {
-                if (Vector2.Distance(a.pos, n.Posicao) < a.Raio + 8)
+
+                if (a.Colide(n))
                 {
-                    asteroides.Remove(a);
+                    asteroides.RemoveAt(i);
                     break;
                 }
             }
         }
-        */
-        //envia o estado do mundo atualizado para os clientes
+
+        // Envia o estado do mundo atualizado para os clientes
         var estadoDoMundo = CriarEstadoDoMundo();
         var estadoJson = JsonSerializer.Serialize(estadoDoMundo);
         _servidor.EnviarMensagem(estadoJson);
-
-        Console.WriteLine($"Enviado EstadoMundo para o cliente a string: {estadoJson}");
-        Console.WriteLine();
-
-
     }
+
     private EstadoMundoMensagem CriarEstadoDoMundo()
     {
         // Usa .Select() em TODAS as listas!
@@ -152,16 +170,17 @@ public class Programa
 
         var tirosEstado = tiros.Select(t => new TiroEstado
         {
-            Id = t.Id,
             PosicaoX = t.Pos.X,
             PosicaoY = t.Pos.Y,
+            Id = t.Id,
         }).ToList();
 
         var asteroidesEstado = asteroides.Select(a => new AsteroideEstado
         {
-            Id = a.Id,
             PosicaoX = a.pos.X,
             PosicaoY = a.pos.Y,
+            Raio = a.Raio,
+            Id = a.Id
         }).ToList();
 
 
@@ -180,7 +199,7 @@ public class Programa
     {
         float x = rnd.Next(width);
         float velY = 2f + (float)rnd.NextDouble() * 2f;   // 2–4 px/frame
-        return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25, aid);
+        return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25, idAsteroide);
     }
 
 
@@ -205,7 +224,7 @@ public class Programa
             if (contagemDeFrames % 40 == 0)
             {
                 asteroides.Add(NovoAsteroide());
-                aid++;
+                idAsteroide++;
             }
 
             double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;

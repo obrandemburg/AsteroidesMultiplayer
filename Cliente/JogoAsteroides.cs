@@ -52,7 +52,7 @@ public class JogoAsteroides : Processing
             Atirando = _atirando
         };
         _gerenciadorDeRede.EnviarMensagem(inputCliente);
-        _atirando = false;
+        //_atirando = false;
 
         background(10, 10, 20);
 
@@ -149,52 +149,21 @@ public class JogoAsteroides : Processing
     /* ====================== input ============================= */
     public void Teclas()
     {
-        _esquerda = false;
-        _direita = false;
-        _cima = false;
-        _baixo = false;
+        var keyboardState = Keyboard.GetState();
 
-        if (!keyPressed) return;  // nada pressionado
+        _esquerda = keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.Left);
+        _direita = keyboardState.IsKeyDown(Keys.D) || keyboardState.IsKeyDown(Keys.Right);
+        _cima = keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up);
+        _baixo = keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Down);
 
-        /* tecla “única” (letras) */
-        switch (char.ToUpperInvariant(key))
+
+        _atirando = keyboardState.IsKeyDown(Keys.Space);
+
+        if (keyboardState.IsKeyDown(Keys.Escape))
         {
-            case 'A': _esquerda = true; break;
-            case 'D': _direita = true; break;
-            case 'W': _cima = true; break;
-            case 'S': _baixo = true; break;
+            Exit();
         }
 
-        /* teclas especiais (setas, espaço, esc) */
-        switch (keyCode)
-        {
-            case Keys.Left: _esquerda = true; break;
-            case Keys.Right: _direita = true; break;
-            case Keys.Up: _cima = true; break;
-            case Keys.Down: _baixo = true; break;
-
-            case Keys.Space: _atirando = true; break;
-            case Keys.Escape: Exit(); break;
-        }
     }
 
-    public override void KeyReleased(Keys pkey)
-    {
-        switch (char.ToUpperInvariant(key))
-        {
-            case 'A': _esquerda = false; break;
-            case 'D': _direita = false; break;
-            case 'W': _cima = false; break;
-            case 'S': _baixo = false; break;
-        }
-
-        switch (keyCode)
-        {
-            case Keys.Left: _esquerda = false; break;
-            case Keys.Right: _direita = false; break;
-            case Keys.Up: _cima = false; break;
-            case Keys.Down: _baixo = false; break;
-            case Keys.Space: _atirando = false; break;
-        }
-    }
 }
