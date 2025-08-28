@@ -2,10 +2,8 @@
 using Asteroides.Compartilhado.Contratos;
 using Asteroides.Compartilhado.Estados;
 using Microsoft.Xna.Framework;
-using System;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Threading.Tasks;
 using static Servidor.GerenciadorDeRede;
 
 public class Programa
@@ -23,7 +21,7 @@ public class Programa
     //Variáveis de controle
     CancellationTokenSource cts = new();
     int contagemDeFrames = 0;
-
+    bool fimDeJogo = false;
 
     private readonly Servidor.GerenciadorDeRede _servidor;
 
@@ -31,8 +29,8 @@ public class Programa
     {
         _servidor = new Servidor.GerenciadorDeRede();
         _servidor.OnMensagemRecebida += ProcessarLogicaDoJogo;
-        naves.Add(new Nave(new Vector2(100, 100), 1));
-        naves.Add(new Nave(new Vector2(200, 100), 2));
+        naves.Add(new Nave(new Vector2(width / 2 - 100, height / 2), 1));
+        naves.Add(new Nave(new Vector2(width / 2 + 100, height / 2), 2));
         Task.Run(() => ContaFrames(cts.Token));
     }
 
@@ -43,14 +41,12 @@ public class Programa
 
         try
         {
-            // FASE 1: INICIAR
             Console.WriteLine("Iniciando o servidor de rede...");
             await _servidor.IniciarEConectarClientesAsync();
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("Servidor de rede está online. Todas as tarefas de fundo estão ativas.");
             Console.ResetColor();
 
-            // FASE 2: AGUARDAR
             Console.WriteLine("\n*** APLICAÇÃO PRINCIPAL RODANDO. PRESSIONE ENTER PARA DESLIGAR. ***\n");
             Console.ReadLine();
         }
@@ -64,7 +60,6 @@ public class Programa
         }
         finally
         {
-            // FASE 3: ENCERRAR
             Console.WriteLine("Sinal de desligamento recebido. Iniciando processo de encerramento...");
             _servidor.Encerrar();
         }
@@ -74,8 +69,10 @@ public class Programa
 
     private void ProcessarLogicaDoJogo(MensagemRecebida msg)
     {
-        const int screenWidth = 1280;
-        const int screenHeight = 720;
+        if (fimDeJogo)
+        {
+            return;
+        }
 
         Tiro? novoTiro = null;
 
@@ -101,7 +98,7 @@ public class Programa
         {
             var t = tiros[i];
             t.Atualizar();
-            if (t.ForaDaTela(screenHeight))
+            if (t.ForaDaTela(height))
             {
                 tiros.RemoveAt(i);
             }
@@ -109,21 +106,18 @@ public class Programa
 
         for (int i = asteroides.Count - 1; i >= 0; i--)
         {
-
             var a = asteroides[i];
             a.Atualizar();
 
-            if (a.ForaDaTela(screenHeight))
+            if (a.ForaDaTela(height))
             {
                 asteroides.RemoveAt(i);
                 continue;
             }
 
-
             for (int j = tiros.Count - 1; j >= 0; j--)
             {
                 var t = tiros[j];
-
                 if (a.Colide(t))
                 {
                     asteroides.RemoveAt(i);
@@ -132,27 +126,28 @@ public class Programa
                     break;
                 }
             }
-
         }
 
-        // VERIFICA COLISÃO COM NAVES
+
         for (int i = asteroides.Count - 1; i >= 0; i--)
         {
             var a = asteroides[i];
-
-            // Loop foreach é seguro aqui porque não estamos modificando a lista 'naves'
-            foreach (var n in naves)
+            for (int j = naves.Count - 1; j >= 0; j--)
             {
-
+                var n = naves[j];
                 if (a.Colide(n))
                 {
-                    asteroides.RemoveAt(i);
-                    break;
+                    fimDeJogo = true;
+                    Console.WriteLine("GAME OVER! Nave atingida.");
+                    break; // Sai do loop de naves
                 }
+            }
+            if (fimDeJogo)
+            {
+                break; // Sai do loop de asteroides
             }
         }
 
-        // Envia o estado do mundo atualizado para os clientes
         var estadoDoMundo = CriarEstadoDoMundo();
         var estadoJson = JsonSerializer.Serialize(estadoDoMundo);
         _servidor.EnviarMensagem(estadoJson);
@@ -160,55 +155,33 @@ public class Programa
 
     private EstadoMundoMensagem CriarEstadoDoMundo()
     {
-        // Usa .Select() em TODAS as listas!
-        var navesEstado = naves.Select(n => new NaveEstado
-        {
-            Id = n.Id,
-            PosicaoX = n.Posicao.X,
-            PosicaoY = n.Posicao.Y
-        }).ToList();
+        var navesEstado = naves.Select(n => new NaveEstado { Id = n.Id, PosicaoX = n.Posicao.X, PosicaoY = n.Posicao.Y }).ToList();
+        var tirosEstado = tiros.Select(t => new TiroEstado { Id = t.Id, PosicaoX = t.Pos.X, PosicaoY = t.Pos.Y }).ToList();
+        var asteroidesEstado = asteroides.Select(a => new AsteroideEstado { Id = a.Id, PosicaoX = a.pos.X, PosicaoY = a.pos.Y, Raio = a.Raio }).ToList();
 
-        var tirosEstado = tiros.Select(t => new TiroEstado
-        {
-            PosicaoX = t.Pos.X,
-            PosicaoY = t.Pos.Y,
-            Id = t.Id,
-        }).ToList();
-
-        var asteroidesEstado = asteroides.Select(a => new AsteroideEstado
-        {
-            PosicaoX = a.pos.X,
-            PosicaoY = a.pos.Y,
-            Raio = a.Raio,
-            Id = a.Id
-        }).ToList();
-
-
-        // Monta o objeto final para enviar
         var estado = new EstadoMundoMensagem
         {
             Naves = navesEstado,
             Tiros = tirosEstado,
             Asteroides = asteroidesEstado,
-            Pontos = this.pontos
+            Pontos = this.pontos,
+            FimDeJogo = this.fimDeJogo
         };
 
         return estado;
     }
+
     Asteroide NovoAsteroide()
     {
         float x = rnd.Next(width);
-        float velY = 2f + (float)rnd.NextDouble() * 2f;   // 2–4 px/frame
+        float velY = 2f + (float)rnd.NextDouble() * 2f;
         return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25, idAsteroide);
     }
-
 
     private async Task ContaFrames(CancellationToken cts)
     {
         const double targetFps = 60.0;
-
         const double targetFrameTimeMilliseconds = 1000.0 / targetFps;
-
         var stopwatch = new Stopwatch();
 
         while (!cts.IsCancellationRequested)
@@ -221,16 +194,14 @@ public class Programa
                 contagemDeFrames = 0;
             }
 
-            if (contagemDeFrames % 40 == 0)
+            if (contagemDeFrames % 40 == 0 && !fimDeJogo)
             {
                 asteroides.Add(NovoAsteroide());
                 idAsteroide++;
             }
 
             double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
-
             var timeToWait = (int)(targetFrameTimeMilliseconds - elapsedMilliseconds);
-
             if (timeToWait > 0)
             {
                 await Task.Delay(timeToWait);
@@ -238,12 +209,9 @@ public class Programa
         }
     }
 
-
     public static async Task Main(string[] args)
     {
         var programa = new Programa();
         await programa.ExecutarAsync();
     }
-
-
 }

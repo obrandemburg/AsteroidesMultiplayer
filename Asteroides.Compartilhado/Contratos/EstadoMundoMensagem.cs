@@ -7,6 +7,7 @@ namespace Asteroides.Compartilhado.Contratos
         public List<AsteroideEstado> Asteroides { get; set; }
         public List<TiroEstado> Tiros { get; set; }
         public int Pontos { get; set; }
+        public bool FimDeJogo { get; set; }
 
         public EstadoMundoMensagem()
         {

@@ -5,8 +5,6 @@ using Microsoft.Xna.Framework.Input;
 using Monogame.Processing;
 using System.Text.Json;
 using Asteroides.Compartilhado.Interfaces;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Cliente;
 
@@ -19,7 +17,7 @@ public class JogoAsteroides : Processing
     private readonly Dictionary<int, Asteroide> _asteroides = new();
 
     private PImage _spriteNave, _spriteAsteroide, _spriteTiro;
-
+    private bool fimDeJogo = false;
     private int _pontuacao;
 
     private bool _esquerda, _direita, _cima, _baixo, _atirando;
@@ -41,87 +39,92 @@ public class JogoAsteroides : Processing
 
     public override void Draw()
     {
-
-        Teclas();
-        InputCliente inputCliente = new InputCliente
+        if (!fimDeJogo)
         {
-            Cima = _cima,
-            Baixo = _baixo,
-            Esquerda = _esquerda,
-            Direita = _direita,
-            Atirando = _atirando
-        };
-        _gerenciadorDeRede.EnviarMensagem(inputCliente);
-        //_atirando = false;
+            Teclas();
+            InputCliente inputCliente = new InputCliente
+            {
+                Cima = _cima,
+                Baixo = _baixo,
+                Esquerda = _esquerda,
+                Direita = _direita,
+                Atirando = _atirando
+            };
+            _gerenciadorDeRede.EnviarMensagem(inputCliente);
 
-        background(10, 10, 20);
+            background(10, 10, 20);
 
-        foreach (var asteroide in _asteroides.Values)
-        {
-            asteroide.Desenhar(this);
+            foreach (var asteroide in _asteroides.Values)
+            {
+                asteroide.Desenhar(this);
+            }
+
+            foreach (var tiro in _tiros.Values)
+            {
+                tiro.Desenhar(this);
+            }
+
+            foreach (var nave in _naves.Values)
+            {
+                nave.Desenhar(this);
+            }
+
+            fill(255);
+            text($"Pontos: {_pontuacao}", 10, 10);
         }
-
-        foreach (var tiro in _tiros.Values)
+        else
         {
-            tiro.Desenhar(this);
+            background(20, 10, 10);
+
+            textSize(40);
+            fill(255, 0, 0);
+            text("GAME OVER", width / 2, height / 2);
+
+            textSize(32);
+            fill(255);
+            text($"Pontuacao Final: {_pontuacao}", width / 2, height / 2 + 100);
+
         }
-
-        foreach (var nave in _naves.Values)
-        {
-            nave.Desenhar(this);
-        }
-
-         fill(255);
-         text($"Pontos: {_pontuacao}", 10, 10);
-
     }
-    private void ProcessarMensagemDoServidor(string json) //Recebe uma string JSON e cria um objeto que ela representa
-    {
-        Console.WriteLine("String json recebida do servidor: " + json);
-        Console.WriteLine();
 
+    private void ProcessarMensagemDoServidor(string json)
+    {
         try
         {
             var msgBase = JsonSerializer.Deserialize<MensagemBase>(json);
 
-            switch (msgBase?.Tipo)
+            if (msgBase?.Tipo == "ESTADO_MUNDO")
             {
-                case "ESTADO_MUNDO":
-                    var estadoMundo = JsonSerializer.Deserialize<EstadoMundoMensagem>(json);
+                var estadoMundo = JsonSerializer.Deserialize<EstadoMundoMensagem>(json);
 
+                _pontuacao = estadoMundo.Pontos;
+                fimDeJogo = estadoMundo.FimDeJogo;
+
+                if (!fimDeJogo)
+                {
                     AtualizarEntidades(estadoMundo);
-                    break;
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Erro ao processar mensagem JSON: {ex.Message}");
-            Console.ReadLine();
         }
     }
+
     private void AtualizarEntidades(EstadoMundoMensagem estadoMundo)
     {
-        // Sincroniza a lista de estados de Naves com o nosso dicionário de Naves visuais
         SincronizarListaComDicionario(estadoMundo.Naves, _naves, estado => new Nave(estado, _spriteNave));
-
-        // Sincroniza a lista de estados de Asteroides com o nosso dicionário de Asteroides visuais
         SincronizarListaComDicionario(estadoMundo.Asteroides, _asteroides, estado => new Asteroide(estado, _spriteAsteroide));
-
-        // Sincroniza a lista de estados de Tiros com o nosso dicionário de Tiros visuais
         SincronizarListaComDicionario(estadoMundo.Tiros, _tiros, estado => new Tiro(estado, _spriteTiro));
     }
 
-    //TEstado = Coisas que tem ID
-    // TEntidade = Coisas que tem Estado e ID
-    //SincronizarListaComDicionario recebe uma lista de coisas que possuem um ID (Estados)
-    //Um dicionário de coisas que possuem um estado que tem ID
-    //uma função que cria uma nova entidade a partir de um estado (entidade que possui ID) e retorna uma entidade que possui o estado que foi passado
     private void SincronizarListaComDicionario<TEstado, TEntidade>(
         List<TEstado> listaDeEstados,
         Dictionary<int, TEntidade> dicionarioDeEntidades,
         Func<TEstado, TEntidade> criarNovaEntidade)
-        where TEstado : IEstadoComId // Regra: TEstado DEVE ter uma propriedade Id
-        where TEntidade : class, IEntidadeComEstado<TEstado> // Regra: TEntidade DEVE ter uma propriedade Estado
+        where TEstado : IEstadoComId
+        where TEntidade : class, IEntidadeComEstado<TEstado>
     {
         var idsRecebidos = new HashSet<int>(listaDeEstados.Select(e => e.Id));
 
@@ -135,35 +138,27 @@ public class JogoAsteroides : Processing
         {
             if (dicionarioDeEntidades.TryGetValue(estado.Id, out var entidadeExistente))
             {
-                // ATUALIZAR: Acesso direto e seguro à propriedade Estado!
                 entidadeExistente.Estado = estado;
             }
             else
             {
-                // ADICIONAR: A mesma lógica de antes.
                 dicionarioDeEntidades[estado.Id] = criarNovaEntidade(estado);
             }
         }
     }
 
-    /* ====================== input ============================= */
     public void Teclas()
     {
         var keyboardState = Keyboard.GetState();
-
         _esquerda = keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.Left);
         _direita = keyboardState.IsKeyDown(Keys.D) || keyboardState.IsKeyDown(Keys.Right);
         _cima = keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up);
         _baixo = keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Down);
-
-
         _atirando = keyboardState.IsKeyDown(Keys.Space);
 
         if (keyboardState.IsKeyDown(Keys.Escape))
         {
             Exit();
         }
-
     }
-
 }
