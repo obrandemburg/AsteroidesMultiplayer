@@ -1,5 +1,4 @@
 ﻿using Asteroides.Compartilhado.Contratos;
-using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
@@ -11,140 +10,150 @@ namespace Servidor
 {
     internal class GerenciadorDeRede : IDisposable
     {
-
+        // NOVO: Evento para notificar a classe principal que um cliente conectou
+        public event Action<int> OnClienteConectado;
+        // NOVO: Evento para notificar que um cliente desconectou
+        public event Action<int> OnClienteDesconectado;
         public event Action<MensagemRecebida> OnMensagemRecebida;
-        public StreamReader Reader1 { get; private set; }
-        public StreamWriter Writer1 { get; private set; }
-        public StreamReader Reader2 { get; private set; }
-        public StreamWriter Writer2 { get; private set; }
 
         public record class MensagemRecebida(int idCliente, InputCliente inputCliente);
 
         private TcpListener _listener;
-        private TcpClient _client1;
-        private TcpClient _client2;
 
-        private readonly BlockingCollection<MensagemRecebida> _mensagensRecebidas = new BlockingCollection<MensagemRecebida>();
-        private readonly BlockingCollection<string> _mensagensEnviadas = new BlockingCollection<string>();
+        // NOVO: Dicionários para gerenciar múltiplos clientes de forma segura entre threads
+        private readonly ConcurrentDictionary<int, TcpClient> _clientes = new();
+        private readonly ConcurrentDictionary<int, StreamWriter> _escritores = new();
 
-        private readonly CancellationTokenSource _cts = new CancellationTokenSource();
+        private readonly BlockingCollection<MensagemRecebida> _mensagensRecebidas = new();
+        private readonly BlockingCollection<string> _mensagensEnviadas = new();
+
+        private int _proximoIdCliente = 1;
+        private const int MAX_CLIENTS = 2;
+
+        private readonly CancellationTokenSource _cts = new();
 
         public GerenciadorDeRede()
         {
             _listener = new TcpListener(IPAddress.Any, 12345);
         }
 
-        public async Task IniciarEConectarClientesAsync()
+        // ALTERADO: O nome e a lógica mudaram. Agora ele apenas inicia o servidor.
+        public void IniciarServidor()
         {
             _listener.Start();
-            Console.WriteLine("Servidor iniciado. Aguardando 2 clientes...");
+            Console.WriteLine("Servidor iniciado. Aguardando clientes...");
 
-            _client1 = await _listener.AcceptTcpClientAsync();
-            var stream1 = _client1.GetStream();
-            Reader1 = new StreamReader(stream1);
-            Writer1 = new StreamWriter(stream1) { AutoFlush = true };
+            // Inicia as tarefas de fundo que processam as filas de mensagens
+            Task.Run(() => EnviarMensagensLoopAsync(_cts.Token));
+            Task.Run(() => ProcessarRecebidosLoop(_cts.Token));
 
-            Console.WriteLine("Cliente 1 conectado!");
-
-            _client2 = await _listener.AcceptTcpClientAsync();
-            var stream2 = _client2.GetStream();
-            Reader2 = new StreamReader(stream2);
-            Writer2 = new StreamWriter(stream2) { AutoFlush = true };
-
-            Console.WriteLine("Cliente 2 conectado!");
-
-            Console.WriteLine("Ambos os clientes estão conectados e prontos para comunicação.");
-            Console.WriteLine("Iniciando Leitor e escritor em threads diferentes");
-            Task tarefa1 = Task.Run(() => OuvirClienteAsync(Reader1, _cts.Token, 1, ConsoleColor.Cyan));
-            Task tarefa2 = Task.Run(() => OuvirClienteAsync(Reader2, _cts.Token, 2, ConsoleColor.Yellow));
-            Task tarefa3 = Task.Run(() => EnviarMensagemAsync(_cts.Token));
-            Task tarefa4 = Task.Run(() => ProcessarRecebidosLoop(_cts.Token));
+            // Inicia a tarefa que fica aceitando novas conexões
+            Task.Run(() => AceitarClientesLoopAsync(_cts.Token));
         }
 
-        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, int cliente, ConsoleColor cor)
+        private async Task AceitarClientesLoopAsync(CancellationToken token)
         {
-            ConsoleColor corOriginal = Console.ForegroundColor;
+            while (!token.IsCancellationRequested && _clientes.Count < MAX_CLIENTS)
+            {
+                try
+                {
+                    TcpClient novoCliente = await _listener.AcceptTcpClientAsync(token);
+
+                    int idCliente = _proximoIdCliente++;
+                    _clientes[idCliente] = novoCliente;
+
+                    var stream = novoCliente.GetStream();
+                    var reader = new StreamReader(stream);
+                    _escritores[idCliente] = new StreamWriter(stream) { AutoFlush = true };
+
+                    Console.WriteLine($"Cliente {idCliente} conectado!");
+
+                    // Dispara o evento para a classe Programa saber que um novo jogador entrou
+                    OnClienteConectado?.Invoke(idCliente);
+
+                    // Inicia uma tarefa dedicada para ouvir apenas este cliente
+                    Task.Run(() => OuvirClienteAsync(reader, token, idCliente, ConsoleColor.Cyan));
+                }
+                catch (OperationCanceledException)
+                {
+                    // O servidor está sendo desligado, saia do loop.
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Erro ao aceitar cliente: {ex.Message}");
+                }
+            }
+            Console.WriteLine("Servidor não está mais aceitando novos clientes (limite atingido ou desligando).");
+        }
+
+        private async Task OuvirClienteAsync(StreamReader clienteReader, CancellationToken token, int idCliente, ConsoleColor cor)
+        {
             Console.ForegroundColor = cor;
-            Console.WriteLine($"Ouvindo Cliente {cliente}.");
+            Console.WriteLine($"Ouvindo Cliente {idCliente}.");
             try
             {
                 string? json;
                 while ((json = await clienteReader.ReadLineAsync(token)) != null)
                 {
-
                     var dadosCliente = JsonSerializer.Deserialize<InputCliente>(json);
-
-                    InputCliente mensagem = new InputCliente
+                    if (dadosCliente != null)
                     {
-                        Cima = dadosCliente.Cima,
-                        Baixo = dadosCliente.Baixo,
-                        Esquerda = dadosCliente.Esquerda,
-                        Direita = dadosCliente.Direita,
-                        Atirando = dadosCliente.Atirando
-
-                    };
-
-                    
-
-                    _mensagensRecebidas.Add(new MensagemRecebida(cliente, mensagem));
+                        _mensagensRecebidas.Add(new MensagemRecebida(idCliente, dadosCliente));
+                    }
                 }
-
-                Console.WriteLine($"{cliente} desconectou de forma limpa.");
             }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine($"A escuta de {cliente} foi cancelada.");
-            }
-            catch (IOException ex)
-            {
-                Console.WriteLine($"A conexão com {cliente} foi perdida: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Erro inesperado na escuta de {cliente}: {ex.Message}");
-            }
+            catch (OperationCanceledException) { /* Silencioso, é esperado ao desligar */ }
+            catch (IOException) { /* Ocorre quando o cliente desconecta abruptamente */ }
+            catch (Exception ex) { Console.WriteLine($"Erro inesperado na escuta de {idCliente}: {ex.Message}"); }
             finally
             {
-                Console.WriteLine($"Parando de ouvir {cliente}.");
+                Console.WriteLine($"Cliente {idCliente} desconectado.");
+                // Limpa os recursos deste cliente
+                _clientes.TryRemove(idCliente, out var client);
+                _escritores.TryRemove(idCliente, out var writer);
+                client?.Close();
+                writer?.Dispose();
+                OnClienteDesconectado?.Invoke(idCliente);
             }
         }
 
-        private async Task EnviarMensagemAsync(CancellationToken cts)
+        // ALTERADO: Renomeado e agora envia para TODOS os clientes conectados
+        private async Task EnviarMensagensLoopAsync(CancellationToken token)
         {
             try
             {
-                foreach (var mensagem in _mensagensEnviadas.GetConsumingEnumerable(cts))
+                foreach (var mensagem in _mensagensEnviadas.GetConsumingEnumerable(token))
                 {
-
-                    Task tarefa1 = Writer1.WriteLineAsync(mensagem);
-                    Task tarefa2 = Writer2.WriteLineAsync(mensagem);
-                    await Task.WhenAll(tarefa1, tarefa2);
-                    Console.WriteLine($"[Gerenciador de Rede] Mensagem enviada: {mensagem}");
+                    var tarefasDeEnvio = new List<Task>();
+                    foreach (var writer in _escritores.Values)
+                    {
+                        tarefasDeEnvio.Add(writer.WriteLineAsync(mensagem));
+                    }
+                    await Task.WhenAll(tarefasDeEnvio);
                 }
             }
-            catch (OperationCanceledException)
-            {
-                Console.WriteLine("Tarefa de envio de mensagens cancelada.");
-            }
+            catch (OperationCanceledException) { Console.WriteLine("Tarefa de envio de mensagens cancelada."); }
         }
+
         private void ProcessarRecebidosLoop(CancellationToken token)
         {
-            Console.WriteLine("[TAREFA INICIADA] Processador de Mensagens Recebidas.");
             try
             {
-                // Este foreach espera passivamente até que uma mensagem seja adicionada à fila _mensagensRecebidas.
-                foreach (var inputcliente in _mensagensRecebidas.GetConsumingEnumerable(token))
+                foreach (var inputCliente in _mensagensRecebidas.GetConsumingEnumerable(token))
                 {
-                    // Dispara o evento para notificar o código externo.
-                    OnMensagemRecebida?.Invoke(inputcliente);
+                    OnMensagemRecebida?.Invoke(inputCliente);
                 }
             }
             catch (OperationCanceledException) { Console.WriteLine("Tarefa de processamento cancelada."); }
         }
 
-        public void EnviarMensagem(string mensagem)
+        public void EnviarMensagemParaTodos(string mensagem)
         {
-            _mensagensEnviadas.Add(mensagem);
+            if (!_mensagensEnviadas.IsAddingCompleted)
+            {
+                _mensagensEnviadas.Add(mensagem);
+            }
         }
 
         public void Encerrar()
@@ -153,22 +162,22 @@ namespace Servidor
             {
                 Console.WriteLine("--- Encerrando o servidor... ---");
                 _cts.Cancel();
+                _listener.Stop();
+
+                // Fecha todas as conexões de clientes
+                foreach (var cliente in _clientes.Values)
+                {
+                    cliente.Close();
+                }
+                _mensagensEnviadas.CompleteAdding();
+                _mensagensRecebidas.CompleteAdding();
             }
         }
 
-
         public void Dispose()
         {
-            Console.WriteLine("Encerrando conexões...");
-            Writer1?.Dispose();
-            Reader1?.Dispose();
-            _client1?.Close();
-
-            Writer2?.Dispose();
-            Reader2?.Dispose();
-            _client2?.Close();
-
-            _listener?.Stop();
+            Encerrar();
+            _cts.Dispose();
         }
     }
 }
