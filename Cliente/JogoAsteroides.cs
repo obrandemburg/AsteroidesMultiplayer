@@ -5,7 +5,10 @@ using Microsoft.Xna.Framework.Input;
 using Monogame.Processing;
 using System.Text.Json;
 using Asteroides.Compartilhado.Interfaces;
-using System.Collections.Concurrent; // Necessário para a ConcurrentQueue
+using System.Collections.Concurrent;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Cliente;
 
@@ -33,6 +36,8 @@ public class JogoAsteroides : Processing
     private string _mensagemDeErro = "";
     private string ipInput = "localhost"; // Mantenha a funcionalidade do menu
     private bool isEditingIp = false;
+
+    private HashSet<Keys> _teclasPressionadasFrameAnterior = new HashSet<Keys>();
 
     public JogoAsteroides()
     {
@@ -82,7 +87,6 @@ public class JogoAsteroides : Processing
 
     private void DesenharMenu()
     {
-        // (O código do DesenharMenu permanece o mesmo da versão anterior)
         background(10, 10, 20);
         textAlign(Monogame.Processing.TextAlign.CENTER);
 
@@ -104,13 +108,19 @@ public class JogoAsteroides : Processing
 
         if (isEditingIp) { fill(255, 255, 0); } else { fill(255); }
 
-        string textoIpParaMostrar = $"[ {ipInput} ]";
-        text(textoIpParaMostrar, width / 2, height * 0.65f + 20);
+        // --- LÓGICA DO CURSOR SIMPLIFICADA E CORRIGIDA ---
+        string textoIpParaMostrar = $"[ {ipInput} ]"; // Monta o texto base
 
+        // Se estiver no modo de edição e o tempo for para o cursor piscar...
         if (isEditingIp && (millis() / 500) % 2 == 0)
         {
-            text("|", width / 2 / 2 - 12, height * 0.65f + 20);
+            // ... simplesmente adicionamos o cursor ao final da string.
+            textoIpParaMostrar = $"[ {ipInput}| ]";
         }
+
+        // Desenha a string final, que pode ou não conter o cursor.
+        text(textoIpParaMostrar, width / 2, height * 0.65f + 20);
+        // --- FIM DA LÓGICA DO CURSOR ---
 
         string statusTexto = "";
         switch (_statusConexao)
@@ -236,15 +246,11 @@ public class JogoAsteroides : Processing
             dicionarioDeEntidades[estado.Id] = criarNovaEntidade(estado);
         }
     }
-
-    // O resto da classe (Teclas, auxiliares de input, etc.) permanece o mesmo.
     public void Teclas()
     {
-        // (O código do Teclas permanece o mesmo da versão anterior)
-        var keyboardState = Keyboard.GetState();
-        var pressedKeys = keyboardState.GetPressedKeys();
+        var teclado = Keyboard.GetState();
 
-        if (IsKeyJustPressed(Keys.Escape))
+        if (AcabouDePressionar(Keys.Escape))
         {
             _gerenciadorDeRede?.Desconectar();
             Exit();
@@ -254,30 +260,123 @@ public class JogoAsteroides : Processing
         {
             if (isEditingIp)
             {
-                if (IsKeyJustPressed(Keys.Enter) || IsKeyJustPressed(Keys.F2)) isEditingIp = false;
-                else ProcessarInputDeTexto(pressedKeys);
+                if (AcabouDePressionar(Keys.Enter) || AcabouDePressionar(Keys.F2))
+                {
+                    isEditingIp = false;
+                    Console.WriteLine("MODO DE EDIÇÃO DESATIVADO");
+                }
+                else
+                {
+                    ProcessarInputTexto(teclado);
+                }
             }
             else
             {
-                if (IsKeyJustPressed(Keys.Enter)) Task.Run(IniciarConexaoAsync);
-                if (IsKeyJustPressed(Keys.F2)) isEditingIp = true;
+                if (AcabouDePressionar(Keys.Enter))
+                {
+                    Task.Run(IniciarConexaoAsync);
+                }
+                if (AcabouDePressionar(Keys.F2))
+                {
+                    isEditingIp = true;
+                    Console.WriteLine("MODO DE EDIÇÃO ATIVADO - Digite o IP");
+                }
             }
         }
         else if (_estadoAtual == EstadoDoJogo.Jogando)
         {
-            _esquerda = keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.Left);
-            _direita = keyboardState.IsKeyDown(Keys.D) || keyboardState.IsKeyDown(Keys.Right);
-            _cima = keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up);
-            _baixo = keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Down);
-            _atirando = keyboardState.IsKeyDown(Keys.Space);
+            _esquerda = teclado.IsKeyDown(Keys.A) || teclado.IsKeyDown(Keys.Left);
+            _direita = teclado.IsKeyDown(Keys.D) || teclado.IsKeyDown(Keys.Right);
+            _cima = teclado.IsKeyDown(Keys.W) || teclado.IsKeyDown(Keys.Up);
+            _baixo = teclado.IsKeyDown(Keys.S) || teclado.IsKeyDown(Keys.Down);
+            _atirando = teclado.IsKeyDown(Keys.Space);
         }
 
-        UpdatePreviousKeyboardState();
+        // No final, atualizamos o estado do frame anterior para o próximo ciclo
+        _teclasPressionadasFrameAnterior = new HashSet<Keys>(teclado.GetPressedKeys());
     }
 
-    private KeyboardState _previousKeyboardState;
-    private void UpdatePreviousKeyboardState() => _previousKeyboardState = Keyboard.GetState();
-    private bool IsKeyJustPressed(Keys key) => Keyboard.GetState().IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key);
+    private void ProcessarInputTexto(KeyboardState teclado)
+    {
+        bool changed = false;
+        foreach (var key in teclado.GetPressedKeys())
+        {
+            // Apenas processa a tecla se ela ACABOU de ser pressionada
+            if (AcabouDePressionar(key))
+            {
+                changed = true;
+                if (key == Keys.Back && ipInput.Length > 0)
+                {
+                    ipInput = ipInput.Substring(0, ipInput.Length - 1);
+                }
+                else if (ipInput.Length < 25)
+                {
+                    char c = GetCharFromKey(key, teclado.IsKeyDown(Keys.LeftShift) || teclado.IsKeyDown(Keys.RightShift));
+                    if (c != '\0')
+                    {
+                        ipInput += c;
+                    }
+                }
+            }
+        }
 
-    private void ProcessarInputDeTexto(Keys[] pressedKeys) { /* ... O código deste método não muda ... */ }
+        if (changed)
+        {
+            Console.WriteLine($"IP atual: {ipInput}");
+        }
+    }
+
+    // Novo método auxiliar que compara o estado atual com o do frame anterior
+    private bool AcabouDePressionar(Keys key)
+    {
+        return Keyboard.GetState().IsKeyDown(key) && !_teclasPressionadasFrameAnterior.Contains(key);
+    }
+
+    private char GetCharFromKey(Keys key, bool shift)
+    {
+        switch (key)
+        {
+            case Keys.A: return shift ? 'A' : 'a';
+            case Keys.B: return shift ? 'B' : 'b';
+            case Keys.C: return shift ? 'C' : 'c';
+            case Keys.D: return shift ? 'D' : 'd';
+            case Keys.E: return shift ? 'E' : 'e';
+            case Keys.F: return shift ? 'F' : 'f';
+            case Keys.G: return shift ? 'G' : 'g';
+            case Keys.H: return shift ? 'H' : 'h';
+            case Keys.I: return shift ? 'I' : 'i';
+            case Keys.J: return shift ? 'J' : 'j';
+            case Keys.K: return shift ? 'K' : 'k';
+            case Keys.L: return shift ? 'L' : 'l';
+            case Keys.M: return shift ? 'M' : 'm';
+            case Keys.N: return shift ? 'N' : 'n';
+            case Keys.O: return shift ? 'O' : 'o';
+            case Keys.P: return shift ? 'P' : 'p';
+            case Keys.Q: return shift ? 'Q' : 'q';
+            case Keys.R: return shift ? 'R' : 'r';
+            case Keys.S: return shift ? 'S' : 's';
+            case Keys.T: return shift ? 'T' : 't';
+            case Keys.U: return shift ? 'U' : 'u';
+            case Keys.V: return shift ? 'V' : 'v';
+            case Keys.W: return shift ? 'W' : 'w';
+            case Keys.X: return shift ? 'X' : 'x';
+            case Keys.Y: return shift ? 'Y' : 'y';
+            case Keys.Z: return shift ? 'Z' : 'z';
+            case Keys.D0: return '0';
+            case Keys.D1: return '1';
+            case Keys.D2: return '2';
+            case Keys.D3: return '3';
+            case Keys.D4: return '4';
+            case Keys.D5: return '5';
+            case Keys.D6: return '6';
+            case Keys.D7: return '7';
+            case Keys.D8: return '8';
+            case Keys.D9: return '9';
+            case Keys.OemPeriod: return '.';
+            case Keys.Decimal: return '.';
+            case Keys.Space: return ' ';
+            default: return '\0';
+        }
+    }
 }
+
