@@ -43,7 +43,6 @@ public class Programa
 
         try
         {
-            Console.WriteLine("Iniciando o servidor de rede...");
             _servidor.IniciarServidor();
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("Servidor de rede está online e aceitando clientes.");
@@ -80,14 +79,12 @@ public class Programa
         var naveParaRemover = naves.FirstOrDefault(n => n.Id == idCliente);
         if (naveParaRemover != null)
         {
-            // ConcurrentBag não tem um método 'Remove' fácil, a maneira é recriar a lista sem o item.
             var navesAtuais = naves.Except(new[] { naveParaRemover }).ToList();
-            naves.Clear(); // Limpa a coleção original
-            foreach (var n in navesAtuais) naves.Add(n); // Readiciona os itens restantes
+            naves.Clear();
+            foreach (var n in navesAtuais) naves.Add(n);
 
             Console.WriteLine($"Nave do cliente {idCliente} removida.");
 
-            // Se não houver mais naves, o jogo acaba.
             if (naves.IsEmpty)
             {
                 fimDeJogo = true;
@@ -111,69 +108,62 @@ public class Programa
         }
     }
 
+    // --- MÉTODO ATUALIZARESTADODOJOGO TOTALMENTE REFEITO PARA SER THREAD-SAFE ---
     private void AtualizarEstadoDoJogo()
     {
         if (fimDeJogo) return;
 
-        // 1. Atualizar Posição dos Tiros e Remover os que saíram da tela
-        var tirosAtuais = new List<Tiro>();
-        while (tiros.TryTake(out var tiro))
+        var navesAtuais = naves.ToList();
+        var tirosAtuais = tiros.ToList();
+        var asteroidesAtuais = asteroides.ToList();
+
+        // Listas para guardar os sobreviventes do frame
+        var tirosSobreviventes = new List<Tiro>();
+        var asteroidesSobreviventes = new List<Asteroide>();
+
+        // 2. Atualizar Posição dos Tiros e filtrar os que saíram da tela
+        foreach (var tiro in tirosAtuais)
         {
             tiro.Atualizar();
             if (!tiro.ForaDaTela(height))
             {
-                tirosAtuais.Add(tiro);
+                tirosSobreviventes.Add(tiro);
             }
         }
-        foreach (var t in tirosAtuais) tiros.Add(t);
 
-        // 2. Atualizar Posição dos Asteroides e Remover os que saíram da tela
-        var asteroidesAtuais = new List<Asteroide>();
-        while (asteroides.TryTake(out var asteroide))
+        // 3. Atualizar Posição dos Asteroides e filtrar os que saíram da tela
+        foreach (var asteroide in asteroidesAtuais)
         {
             asteroide.Atualizar();
             if (!asteroide.ForaDaTela(height))
             {
-                asteroidesAtuais.Add(asteroide);
+                asteroidesSobreviventes.Add(asteroide);
             }
         }
-        foreach (var a in asteroidesAtuais) asteroides.Add(a);
 
-
-        // 3. Verificar Colisão: Tiros vs Asteroides
+        // 4. Verificar Colisão: Tiros vs Asteroides
         var tirosAtingidos = new HashSet<Tiro>();
         var asteroidesAtingidos = new HashSet<Asteroide>();
 
-        foreach (var tiro in tiros)
+        // Agora iteramos sobre as listas locais (e seguras) de sobreviventes
+        foreach (var tiro in tirosSobreviventes)
         {
-            foreach (var asteroide in asteroides)
+            foreach (var asteroide in asteroidesSobreviventes)
             {
                 if (asteroide.Colide(tiro))
                 {
                     tirosAtingidos.Add(tiro);
                     asteroidesAtingidos.Add(asteroide);
-                    pontos += 100;
+                    Interlocked.Add(ref pontos, 100);
                 }
             }
         }
 
-        // Remove os itens atingidos
-        if (tirosAtingidos.Any() || asteroidesAtingidos.Any())
+        // 5. Verificar Colisão: Naves vs Asteroides
+        foreach (var nave in navesAtuais)
         {
-            var tirosRestantes = tiros.Except(tirosAtingidos).ToList();
-            tiros.Clear();
-            foreach (var t in tirosRestantes) tiros.Add(t);
-
-            var asteroidesRestantes = asteroides.Except(asteroidesAtingidos).ToList();
-            asteroides.Clear();
-            foreach (var a in asteroidesRestantes) asteroides.Add(a);
-        }
-
-
-        // 4. Verificar Colisão: Naves vs Asteroides
-        foreach (var nave in naves)
-        {
-            foreach (var asteroide in asteroides)
+            // Usamos a lista de asteroides sobreviventes da etapa anterior
+            foreach (var asteroide in asteroidesSobreviventes)
             {
                 if (asteroide.Colide(nave))
                 {
@@ -181,8 +171,31 @@ public class Programa
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine("GAME OVER! Nave atingida por asteroide.");
                     Console.ResetColor();
-                    return; // Sai imediatamente do método
+                    break; // Sai do loop de asteroides
                 }
+            }
+            if (fimDeJogo) break; // Sai do loop de naves
+        }
+
+        // --- Passo 3: Atualizar as coleções globais com o resultado do frame ---
+
+        // Limpa o ConcurrentBag de tiros e o repopula com os tiros que não saíram da tela E não colidiram
+        tiros.Clear();
+        foreach (var tiro in tirosSobreviventes)
+        {
+            if (!tirosAtingidos.Contains(tiro))
+            {
+                tiros.Add(tiro);
+            }
+        }
+
+        // Faz o mesmo para os asteroides
+        asteroides.Clear();
+        foreach (var asteroide in asteroidesSobreviventes)
+        {
+            if (!asteroidesAtingidos.Contains(asteroide))
+            {
+                asteroides.Add(asteroide);
             }
         }
     }
@@ -203,7 +216,7 @@ public class Programa
             if (!fimDeJogo)
             {
                 contagemDeFrames++;
-                if (contagemDeFrames >= 60)
+                if (contagemDeFrames >= 60) // Gera asteroides a cada 1 segundo
                 {
                     asteroides.Add(NovoAsteroide());
                     contagemDeFrames = 0;
@@ -232,6 +245,7 @@ public class Programa
 
     private EstadoMundoMensagem CriarEstadoDoMundo()
     {
+        // Esta operação é segura, pois .Select (LINQ) trabalha em um snapshot momentâneo do ConcurrentBag
         var navesEstado = naves.Select(n => new NaveEstado { Id = n.Id, PosicaoX = n.Posicao.X, PosicaoY = n.Posicao.Y }).ToList();
         var tirosEstado = tiros.Select(t => new TiroEstado { Id = t.Id, PosicaoX = t.Pos.X, PosicaoY = t.Pos.Y }).ToList();
         var asteroidesEstado = asteroides.Select(a => new AsteroideEstado { Id = a.Id, PosicaoX = a.pos.X, PosicaoY = a.pos.Y, Raio = a.Raio }).ToList();
@@ -253,7 +267,6 @@ public class Programa
         float velY = 2f + (float)rnd.NextDouble() * 2f;
         return new Asteroide(new Vector2(x, -30), new Vector2(0, velY), 25, novoIdAsteroide);
     }
-
 
     public static async Task Main(string[] args)
     {
