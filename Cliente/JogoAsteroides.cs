@@ -34,7 +34,7 @@ public class JogoAsteroides : Processing
 
     private bool _esquerda, _direita, _cima, _baixo, _atirando;
     private string _mensagemDeErro = "";
-    private string ipInput = "localhost"; // Mantenha a funcionalidade do menu
+    private string ipInput = "187.20.76.23"; // Mantenha a funcionalidade do menu
     private bool isEditingIp = false;
 
     private HashSet<Keys> _teclasPressionadasFrameAnterior = new HashSet<Keys>();

@@ -108,7 +108,6 @@ public class Programa
         }
     }
 
-    // --- MÉTODO ATUALIZARESTADODOJOGO TOTALMENTE REFEITO PARA SER THREAD-SAFE ---
     private void AtualizarEstadoDoJogo()
     {
         if (fimDeJogo) return;
@@ -117,11 +116,9 @@ public class Programa
         var tirosAtuais = tiros.ToList();
         var asteroidesAtuais = asteroides.ToList();
 
-        // Listas para guardar os sobreviventes do frame
         var tirosSobreviventes = new List<Tiro>();
         var asteroidesSobreviventes = new List<Asteroide>();
 
-        // 2. Atualizar Posição dos Tiros e filtrar os que saíram da tela
         foreach (var tiro in tirosAtuais)
         {
             tiro.Atualizar();
@@ -131,7 +128,6 @@ public class Programa
             }
         }
 
-        // 3. Atualizar Posição dos Asteroides e filtrar os que saíram da tela
         foreach (var asteroide in asteroidesAtuais)
         {
             asteroide.Atualizar();
@@ -141,16 +137,16 @@ public class Programa
             }
         }
 
-        // 4. Verificar Colisão: Tiros vs Asteroides
         var tirosAtingidos = new HashSet<Tiro>();
         var asteroidesAtingidos = new HashSet<Asteroide>();
 
-        // Agora iteramos sobre as listas locais (e seguras) de sobreviventes
         foreach (var tiro in tirosSobreviventes)
         {
             foreach (var asteroide in asteroidesSobreviventes)
             {
-                if (asteroide.Colide(tiro))
+                // --- CORREÇÃO ESTÁ AQUI ---
+                // A colisão só é válida se o asteroide AINDA NÃO foi atingido E o tiro AINDA NÃO atingiu nada neste frame.
+                if (!asteroidesAtingidos.Contains(asteroide) && !tirosAtingidos.Contains(tiro) && asteroide.Colide(tiro))
                 {
                     tirosAtingidos.Add(tiro);
                     asteroidesAtingidos.Add(asteroide);
@@ -159,27 +155,24 @@ public class Programa
             }
         }
 
-        // 5. Verificar Colisão: Naves vs Asteroides
         foreach (var nave in navesAtuais)
         {
-            // Usamos a lista de asteroides sobreviventes da etapa anterior
+            // Usamos a lista de asteroides que ainda não foram destruídos pelos tiros
             foreach (var asteroide in asteroidesSobreviventes)
             {
-                if (asteroide.Colide(nave))
+                // Verifica se o asteroide não foi atingido por um tiro antes de checar contra a nave
+                if (!asteroidesAtingidos.Contains(asteroide) && asteroide.Colide(nave))
                 {
                     fimDeJogo = true;
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine("GAME OVER! Nave atingida por asteroide.");
                     Console.ResetColor();
-                    break; // Sai do loop de asteroides
+                    break;
                 }
             }
-            if (fimDeJogo) break; // Sai do loop de naves
+            if (fimDeJogo) break;
         }
 
-        // --- Passo 3: Atualizar as coleções globais com o resultado do frame ---
-
-        // Limpa o ConcurrentBag de tiros e o repopula com os tiros que não saíram da tela E não colidiram
         tiros.Clear();
         foreach (var tiro in tirosSobreviventes)
         {
@@ -189,7 +182,6 @@ public class Programa
             }
         }
 
-        // Faz o mesmo para os asteroides
         asteroides.Clear();
         foreach (var asteroide in asteroidesSobreviventes)
         {
@@ -199,6 +191,7 @@ public class Programa
             }
         }
     }
+
 
 
     private async Task ContaFrames(CancellationToken token)
